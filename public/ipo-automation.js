@@ -1,5 +1,5 @@
 // Constants
-const API_ENDPOINT = "/api/ipo/";
+const API_ENDPOINT = "/.netlify/functions/ipoManager";
 
 // Store accounts in localStorage
 let accounts = [];
