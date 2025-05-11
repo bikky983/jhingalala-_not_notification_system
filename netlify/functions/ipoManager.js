@@ -112,6 +112,14 @@ exports.handler = async function(event, context) {
     } catch (error) {
         console.error('Error in IPO Manager:', error);
         
+        // Determine if this is an axios error with a response
+        const axiosError = error.isAxiosError ? {
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            data: error.response?.data,
+            url: error.config?.url
+        } : null;
+        
         return {
             statusCode: 500,
             headers: {
@@ -121,6 +129,7 @@ exports.handler = async function(event, context) {
             body: JSON.stringify({
                 success: false,
                 error: error.message || 'Internal server error',
+                axiosError: axiosError,
                 stack: error.stack
             })
         };
@@ -133,7 +142,8 @@ async function getCapitalList() {
         // Create a clean session
         const session = axios.create({
             headers: { ...BASE_HEADERS, "Authorization": "null" },
-            httpsAgent: httpsAgent // Add httpsAgent for SSL certificate bypass
+            httpsAgent: httpsAgent, // Add httpsAgent for SSL certificate bypass
+            timeout: 30000 // Add 30 second timeout
         });
         
         const response = await session.get(`${MS_API_BASE}/meroShare/capital/`);
@@ -179,7 +189,8 @@ async function loginAccount(account) {
                 "Authorization": "null",
                 "Content-Type": "application/json"
             },
-            httpsAgent: httpsAgent // Add httpsAgent for SSL certificate bypass
+            httpsAgent: httpsAgent, // Add httpsAgent for SSL certificate bypass
+            timeout: 30000 // Add 30 second timeout
         });
         
         // Prepare login data
@@ -240,7 +251,8 @@ async function getAccountDetails(account) {
                 ...BASE_HEADERS,
                 "Authorization": account.auth_token
             },
-            httpsAgent: httpsAgent // Add httpsAgent for SSL certificate bypass
+            httpsAgent: httpsAgent, // Add httpsAgent for SSL certificate bypass
+            timeout: 30000 // Add 30 second timeout
         });
         
         // Get account details
@@ -282,7 +294,8 @@ async function getBankDetails(account) {
                 ...BASE_HEADERS,
                 "Authorization": account.auth_token
             },
-            httpsAgent: httpsAgent // Add httpsAgent for SSL certificate bypass
+            httpsAgent: httpsAgent, // Add httpsAgent for SSL certificate bypass
+            timeout: 30000 // Add 30 second timeout
         });
         
         // Get bank ID
@@ -349,7 +362,8 @@ async function getApplicableIssues(account) {
                 ...BASE_HEADERS,
                 "Authorization": account.auth_token
             },
-            httpsAgent: httpsAgent // Add httpsAgent for SSL certificate bypass
+            httpsAgent: httpsAgent, // Add httpsAgent for SSL certificate bypass
+            timeout: 30000 // Add 30 second timeout
         });
         
         const response = await session.get(`${MS_API_BASE}/meroShare/companyShare/applicableIssue/`);
@@ -386,7 +400,8 @@ async function applyForIpo(account, shareId, quantity) {
                 "Pragma": "no-cache",
                 "Cache-Control": "no-cache"
             },
-            httpsAgent: httpsAgent // Add httpsAgent for SSL certificate bypass
+            httpsAgent: httpsAgent, // Add httpsAgent for SSL certificate bypass
+            timeout: 30000 // Add 30 second timeout
         });
         
         // Prepare application data
@@ -431,7 +446,8 @@ async function getResultCompanies(account) {
                 ...BASE_HEADERS,
                 "Authorization": account.auth_token
             },
-            httpsAgent: httpsAgent // Add httpsAgent for SSL certificate bypass
+            httpsAgent: httpsAgent, // Add httpsAgent for SSL certificate bypass
+            timeout: 30000 // Add 30 second timeout
         });
         
         const response = await session.get(`${MS_API_BASE}/meroShare/applicationReport/report/applicantReport/`);
@@ -460,7 +476,8 @@ async function checkIpoResult(account, companyShareId) {
                 ...BASE_HEADERS,
                 "Authorization": account.auth_token
             },
-            httpsAgent: httpsAgent // Add httpsAgent for SSL certificate bypass
+            httpsAgent: httpsAgent, // Add httpsAgent for SSL certificate bypass
+            timeout: 30000 // Add 30 second timeout
         });
         
         const response = await session.get(`${MS_API_BASE}/meroShare/applicantForm/existingForm/detail/${companyShareId}`);
@@ -494,7 +511,8 @@ async function getApplicationStatus(account) {
                 "Authorization": account.auth_token,
                 "Content-Type": "application/json"
             },
-            httpsAgent: httpsAgent // Add httpsAgent for SSL certificate bypass
+            httpsAgent: httpsAgent, // Add httpsAgent for SSL certificate bypass
+            timeout: 30000 // Add 30 second timeout
         });
         
         const response = await session.post(`${MS_API_BASE}/meroShare/applicantForm/active/search/`, {});
