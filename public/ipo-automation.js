@@ -1,5 +1,5 @@
 // Constants
-const API_ENDPOINT = "/api/ipo";
+const API_ENDPOINT = "/api/ipo/";
 
 // Store accounts in localStorage
 let accounts = [];
@@ -22,7 +22,11 @@ async function callIpoManager(action, data = {}) {
         const result = await response.json();
         
         if (!result.success) {
-            throw new Error(result.error || 'API request failed');
+            if (result.error) {
+                throw new Error(result.error);
+            } else {
+                throw new Error(`API request failed with status: ${response.status}`);
+            }
         }
         
         return result.data;
@@ -432,7 +436,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Show success message
             alert(`Account ${account.name} added successfully!`);
         } catch (error) {
-            alert(`Error adding account: ${error.message}`);
+            console.error('Account addition failed:', error);
+            alert(`Error adding account: ${error.message || 'Unknown error occurred'}`);
         }
     });
     
