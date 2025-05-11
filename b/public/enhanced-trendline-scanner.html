@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Trendline Scanner - NEPSE Stock Screener</title>
+    <link rel="stylesheet" href="dashboard.css">
+    <!-- D3.js library for charts -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        .filter-section {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+
+        .filter-section h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .filter-group label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .filter-group input[type="number"] {
+            width: 70px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        
+        .action-buttons button {
+            padding: 10px 15px;
+            background-color: #2c3e50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .action-buttons button:hover {
+            background-color: #1a2530;
+        }
+
+        /* Chart styles */
+        .uptrend {
+            color: #4caf50;
+            font-weight: bold;
+        }
+
+        .downtrend {
+            color: #f44336;
+            font-weight: bold;
+        }
+
+        .close-trend {
+            color: #2196f3;
+            font-weight: bold;
+        }
+        
+        .chart-container {
+            position: relative;
+            width: 200px;
+            height: 80px;
+        }
+        
+        .radio-group {
+            display: flex;
+            gap: 15px;
+        }
+
+        .trend-quality {
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        .trend-quality.strong {
+            background-color: #4caf50;
+            color: white;
+        }
+
+        .trend-quality.medium {
+            background-color: #ff9800;
+            color: white;
+        }
+
+        .trend-quality.weak {
+            background-color: #f44336;
+            color: white;
+        }
+
+        .volume-confirmation {
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-size: 0.8em;
+            font-weight: bold;
+            background-color: #9c27b0;
+            color: white;
+        }
+
+        .touch-point {
+            fill: orange;
+        }
+        
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background-color: #f5f5f5;
+            border: 1px solid #ddd;
+        }
+        
+        .tab.active {
+            background-color: #2c3e50;
+            color: white;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* Chart Popup Styles */
+        .chart-popup {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .chart-popup-content {
+            background-color: #fff;
+            width: 90%;
+            height: 90%;
+            max-width: 1200px;
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        .chart-popup-header {
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #2c3e50;
+            color: white;
+        }
+        
+        .chart-popup-header h3 {
+            margin: 0;
+            font-size: 18px;
+        }
+        
+        .chart-popup-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            margin: 0;
+            line-height: 1;
+        }
+        
+        .chart-popup-body {
+            flex: 1;
+            padding: 20px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        #popupChartContainer {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        
+        /* Candlestick chart styling */
+        .candle {
+            stroke: #333;
+            stroke-width: 0.5;
+        }
+        
+        .wick {
+            stroke-width: 1.5;
+        }
+        
+        text {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+        }
+        
+        .axis line, .axis path {
+            stroke: #ccc;
+            stroke-width: 0.5;
+        }
+        
+        .support-line {
+            stroke: #1976D2;
+            stroke-width: 1.5;
+            stroke-dasharray: 4,4;
+        }
+        
+        .trendline {
+            stroke-width: 2;
+        }
+        
+        .price-label {
+            font-size: 12px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <header>
+            <h1>Enhanced Trendline Scanner</h1>
+            <div class="nav-links">
+                <!-- Navigation links will be populated by common-nav.js -->
+            </div>
+        </header>
+        
+        <div class="filter-options">
+            <div class="filter-section">
+                <h3>Trendline Settings</h3>
+                <div class="filter-group">
+                    <label for="lookbackPeriod">Lookback Period (days):</label>
+                    <input type="number" id="lookbackPeriod" value="60" min="10" max="200" step="1">
+                </div>
+                <div class="filter-group">
+                    <label for="minTouches">Minimum Touches:</label>
+                    <input type="number" id="minTouches" value="3" min="2" max="10" step="1">
+                </div>
+                <div class="filter-group">
+                    <label for="proximityThreshold">Base Proximity Threshold (%):</label>
+                    <input type="number" id="proximityThreshold" value="2" min="0.1" max="10" step="0.1">
+                </div>
+                <div class="filter-group">
+                    <label for="atrMultiplier">ATR Multiplier:</label>
+                    <input type="number" id="atrMultiplier" value="0.5" min="0.1" max="2" step="0.1">
+                    <span class="tooltip" title="Multiplier for Average True Range to determine touch threshold">ℹ️</span>
+                </div>
+                <div class="filter-group">
+                    <label>Trendline Direction:</label>
+                    <div class="radio-group">
+                        <label>
+                            <input type="radio" name="trendDirection" value="both" checked>
+                            Both
+                        </label>
+                        <label>
+                            <input type="radio" name="trendDirection" value="up">
+                            Uptrend
+                        </label>
+                        <label>
+                            <input type="radio" name="trendDirection" value="down">
+                            Downtrend
+                        </label>
+                    </div>
+                </div>
+                <div class="filter-group">
+                    <label>
+                        <input type="checkbox" id="requireVolumeConfirmation" checked>
+                        Require Volume Confirmation
+                    </label>
+                </div>
+                <div class="filter-group">
+                    <label>
+                        <input type="checkbox" id="showBoughtStocks" checked>
+                        Show Bought Stocks
+                    </label>
+                </div>
+                <div class="filter-group">
+                    <label>
+                        <input type="checkbox" id="showWatchlistOnly">
+                        Dashboard Stocks Only
+                    </label>
+                </div>
+            </div>
+            
+            <div class="filter-section">
+                <h3>Advanced Filters</h3>
+                <div class="filter-group">
+                    <label for="minTrendQuality">Minimum Trend Quality:</label>
+                    <select id="minTrendQuality">
+                        <option value="weak">Weak</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="strong">Strong</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="minTrendDuration">Minimum Trend Duration (days):</label>
+                    <input type="number" id="minTrendDuration" value="14" min="7" max="100" step="1">
+                </div>
+            </div>
+        </div>
+        
+        <div class="tabs">
+            <div class="tab active" data-tab="trendline">Trendline Scanner</div>
+            <div class="tab" data-tab="breakdown">Trend Breakdown</div>
+        </div>
+        
+        <div class="action-buttons">
+            <button id="refreshListBtn">Refresh List</button>
+            <button id="autoRefreshToggle" class="toggle-btn">Enable Auto Refresh</button>
+            <button id="addToWatchlistButton">Add Selected to Watchlist</button>
+        </div>
+
+        <div id="messageContainer"></div>
+        <div id="loadingIndicator" class="loading-spinner" style="display: none;">
+            <div class="spinner"></div>
+        </div>
+
+        <main>
+            <div id="trendlineTab" class="tab-content active">
+                <div class="summary-stats">
+                    <div class="stat-card">
+                        <span class="stat-title">Total Stocks</span>
+                        <span id="stockCount" class="stat-value">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-title">Uptrends</span>
+                        <span id="uptrendCount" class="stat-value">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-title">Downtrends</span>
+                        <span id="downtrendCount" class="stat-value">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-title">Last Updated</span>
+                        <span id="lastUpdated" class="stat-value">Never</span>
+                    </div>
+                </div>
+                
+                <table id="trendlineTable">
+                    <thead>
+                        <tr>
+                            <th>Select</th>
+                            <th>Symbol</th>
+                            <th>Current Price</th>
+                            <th>Trendline Value</th>
+                            <th>Distance (%)</th>
+                            <th>Direction</th>
+                            <th>Touches</th>
+                            <th>Quality</th>
+                            <th>Volume</th>
+                            <th>Watchlist</th>
+                            <th>Chart</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trendlineTableBody">
+                        <!-- Stocks will be displayed here -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <div id="breakdownTab" class="tab-content">
+                <h3>Trend Quality Breakdown</h3>
+                <div id="trendQualityChart" class="chart-container" style="height: 300px; width: 100%;"></div>
+                
+                <h3>Trend Duration Distribution</h3>
+                <div id="trendDurationChart" class="chart-container" style="height: 300px; width: 100%;"></div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Chart popup for full-screen view -->
+    <div class="chart-popup">
+        <div class="chart-popup-content">
+            <div class="chart-popup-header">
+                <h3 id="popupChartTitle">Stock Chart</h3>
+                <button class="chart-popup-close">&times;</button>
+            </div>
+            <div class="chart-popup-body">
+                <div id="popupChartContainer"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="common-nav.js"></script>
+    <script src="common-watchlist.js"></script>
+    <script src="enhanced-trendline-scanner.js"></script>
+</body>
+</html> 

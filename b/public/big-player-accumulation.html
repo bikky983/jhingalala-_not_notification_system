@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Big Player Accumulation Detector</title>
+    <link rel="stylesheet" href="dashboard.css">
+    <!-- Add D3.js for better charts -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <!-- Keep LightweightCharts for backward compatibility -->
+    <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+        /* Additional styles specific to big player accumulation page */
+        .filter-section {
+            background-color: #f5f5f5 !important;
+            padding: 15px !important;
+            border-radius: 5px !important;
+            margin-bottom: 15px !important;
+        }
+        
+        .filter-group {
+            display: flex !important;
+            align-items: center !important;
+            gap: 10px !important;
+            margin-bottom: 10px !important;
+            flex-wrap: wrap !important;
+        }
+        
+        .score-indicator {
+            display: inline-block !important;
+            padding: 2px 8px !important;
+            border-radius: 4px !important;
+            font-weight: bold !important;
+            text-align: center !important;
+            min-width: 60px !important;
+        }
+        
+    
+        
+        .score-veryhigh {
+            background-color: #2e7d32 !important;
+            color: white !important;
+        }
+        
+        .score-high {
+            background-color: #4caf50 !important;
+            color: white !important;
+        }
+        
+        .score-medium {
+            background-color: #ff9800 !important;
+            color: white !important;
+        }
+        
+        .score-low {
+            background-color: #f44336 !important;
+            color: white !important;
+        }
+        
+        .pattern-tag {
+            display: inline-block !important;
+            padding: 2px 6px !important;
+            border-radius: 4px !important;
+            font-size: 0.8em !important;
+            margin-right: 4px !important;
+            margin-bottom: 4px !important;
+        }
+        
+        .pattern-wyckoff {
+            background-color: #e8f5e9 !important;
+            color: #2e7d32 !important;
+            border: 1px solid #81c784 !important;
+        }
+        
+        .pattern-vsa {
+            background-color: #fff8e1 !important;
+            color: #ff8f00 !important;
+            border: 1px solid #ffd54f !important;
+        }
+        
+        .pattern-obv {
+            background-color: #e0f7fa !important;
+            color: #0277bd !important;
+            border: 1px solid #4dd0e1 !important;
+        }
+        
+        .pattern-rsi {
+            background-color: #f3e5f5 !important;
+            color: #7b1fa2 !important;
+            border: 1px solid #ce93d8 !important;
+        }
+        
+        .indicator-list {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            gap: 5px !important;
+        }
+        
+        .volume-bar {
+            height: 20px !important;
+            background: linear-gradient(90deg, #4caf50 var(--fill-percent), #f5f5f5 var(--fill-percent)) !important;
+            border-radius: 3px !important;
+            position: relative !important;
+        }
+        
+        .volume-bar-text {
+            position: absolute !important;
+            right: 5px !important;
+            top: 0 !important;
+            color: #333 !important;
+            font-size: 0.8em !important;
+            line-height: 20px !important;
+        }
+        
+        .chart-container-small {
+            height: 100px !important;
+            width: 100% !important;
+            max-width: 200px !important;
+            position: relative !important;
+            cursor: pointer !important;
+            overflow: hidden !important;
+        }
+        
+        .tabs {
+            display: flex !important;
+            background-color: #f5f5f5 !important;
+            border-radius: 4px !important;
+            overflow: hidden !important;
+            margin-bottom: 20px !important;
+        }
+        
+        .tab {
+            padding: 10px 20px !important;
+            cursor: pointer !important;
+            flex-grow: 1 !important;
+            text-align: center !important;
+            transition: background-color 0.3s !important;
+        }
+        
+        .tab.active {
+            background-color: #006666 !important;
+            color: white !important;
+        }
+        
+        .info-box {
+            background-color: #e1f5fe !important;
+            border-left: 4px solid #03a9f4 !important;
+            padding: 12px 15px !important;
+            margin-bottom: 20px !important;
+            border-radius: 0 4px 4px 0 !important;
+        }
+        
+        .info-box h4 {
+            margin-top: 0 !important;
+            margin-bottom: 8px !important;
+            color: #0288d1 !important;
+        }
+        
+        .info-box ul {
+            margin: 0 !important;
+            padding-left: 20px !important;
+        }
+        
+        .info-box li {
+            margin-bottom: 5px !important;
+        }
+        
+        .pattern-progress {
+            width: 100% !important;
+            height: 6px !important;
+            background-color: #f5f5f5 !important;
+            border-radius: 3px !important;
+            margin-top: 5px !important;
+        }
+        
+        .pattern-progress-bar {
+            height: 100% !important;
+            border-radius: 3px !important;
+            background-color: #4caf50 !important;
+        }
+        
+        .time-tooltip {
+            position: relative !important;
+            display: inline-block !important;
+            cursor: help !important;
+        }
+        
+        .time-tooltip .tooltip-text {
+            visibility: hidden !important;
+            width: 200px !important;
+            background-color: #333 !important;
+            color: #fff !important;
+            text-align: center !important;
+            border-radius: 6px !important;
+            padding: 5px !important;
+            position: absolute !important;
+            z-index: 1 !important;
+            bottom: 125% !important;
+            left: 50% !important;
+            margin-left: -100px !important;
+            opacity: 0 !important;
+            transition: opacity 0.3s !important;
+        }
+        
+        .time-tooltip:hover .tooltip-text {
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+        
+        /* Range slider styling */
+        input[type="range"] {
+            -webkit-appearance: none !important;
+            width: 100% !important;
+            height: 8px !important;
+            border-radius: 5px !important;
+            background: #d3d3d3 !important;
+            outline: none !important;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none !important;
+            appearance: none !important;
+            width: 20px !important;
+            height: 20px !important;
+            border-radius: 50% !important;
+            background: #006666 !important;
+            cursor: pointer !important;
+        }
+        
+        input[type="range"]::-moz-range-thumb {
+            width: 20px !important;
+            height: 20px !important;
+            border-radius: 50% !important;
+            background: #006666 !important;
+            cursor: pointer !important;
+        }
+        
+        .slider-label {
+            display: flex !important;
+            justify-content: space-between !important;
+            margin-top: 5px !important;
+            font-size: 12px !important;
+        }
+        
+        .toggle-container {
+            display: flex !important;
+            align-items: center !important;
+        }
+        
+        .toggle-switch {
+            position: relative !important;
+            display: inline-block !important;
+            width: 50px !important;
+            height: 24px !important;
+            margin: 0 10px !important;
+        }
+        
+        .toggle-switch input {
+            opacity: 0 !important;
+            width: 0 !important;
+            height: 0 !important;
+        }
+        
+        .toggle-slider {
+            position: absolute !important;
+            cursor: pointer !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            background-color: #ccc !important;
+            transition: .4s !important;
+            border-radius: 24px !important;
+        }
+        
+        .toggle-slider:before {
+            position: absolute !important;
+            content: "" !important;
+            height: 16px !important;
+            width: 16px !important;
+            left: 4px !important;
+            bottom: 4px !important;
+            background-color: white !important;
+            transition: .4s !important;
+            border-radius: 50% !important;
+        }
+        
+        input:checked + .toggle-slider {
+            background-color: #006666 !important;
+        }
+        
+        input:checked + .toggle-slider:before {
+            transform: translateX(26px) !important;
+        }
+        
+        /* Action button styles */
+        .action-button {
+            padding: 6px 10px !important;
+            margin: 2px !important;
+            border-radius: 4px !important;
+            border: 1px solid #ddd !important;
+            background-color: #f5f5f5 !important;
+            cursor: pointer !important;
+            font-size: 14px !important;
+            transition: all 0.2s ease !important;
+        }
+        
+        .action-button:hover {
+            background-color: #e0e0e0 !important;
+            transform: scale(1.05) !important;
+        }
+        
+        .action-button.active {
+            background-color: #00796b !important;
+            color: white !important;
+            border-color: #00796b !important;
+        }
+        
+        .icon {
+            font-style: normal !important;
+            font-size: 16px !important;
+        }
+        
+        /* Details button */
+        .details-button {
+            background-color: #2196F3 !important;
+            color: white !important;
+            border-color: #1976D2 !important;
+        }
+        
+        .details-button:hover {
+            background-color: #1976D2 !important;
+        }
+        
+        /* Mark buying button */
+        .mark-buying-button {
+            background-color: #4CAF50 !important;
+            color: white !important;
+            border-color: #388E3C !important;
+        }
+        
+        .mark-buying-button:hover {
+            background-color: #388E3C !important;
+        }
+        
+        .mark-buying-button.active {
+            background-color: #388E3C !important;
+            color: white !important;
+        }
+        
+        /* Watchlist button */
+        .watchlist-button {
+            background-color: #e9f5da !important;
+            color: #212121 !important;
+            border-color: #f7dcad !important;
+        }
+        
+        .watchlist-button:hover {
+            background-color: #f7cc83 !important;
+        }
+        
+        .watchlist-button.active {
+            background-color: #f1dbb4 !important;
+            color: #212121 !important;
+        }
+        
+        /* Chart popup styles */
+        .chart-popup {
+            display: none !important;
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            background-color: rgba(0, 0, 0, 0.7) !important;
+            z-index: 1000 !important;
+            justify-content: center !important;
+            align-items: center !important;
+        }
+        
+        .chart-popup.visible {
+            display: flex !important;
+        }
+        
+        .chart-popup-content {
+            background-color: white !important;
+            border-radius: 8px !important;
+            width: 90% !important;
+            max-width: 1200px !important;
+            height: 90% !important;
+            max-height: 800px !important;
+            position: relative !important;
+            overflow: hidden !important;
+            display: flex !important;
+            flex-direction: column !important;
+        }
+        
+        .chart-popup-header {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            padding: 10px 15px !important;
+            border-bottom: 1px solid #ddd !important;
+        }
+        
+        .chart-popup-header h3 {
+            margin: 0 !important;
+            font-size: 18px !important;
+        }
+        
+        .chart-popup-close {
+            background: none !important;
+            border: none !important;
+            font-size: 24px !important;
+            cursor: pointer !important;
+            color: #FFFFFF !important;
+        }
+        
+        .chart-popup-body {
+            display: flex !important;
+            flex-direction: column !important;
+            flex: 1 !important;
+            overflow: hidden !important;
+            padding: 15px !important;
+        }
+        
+        #popupChartContainer {
+            flex: 1 !important;
+            position: relative !important;
+            min-height: 400px !important;
+        }
+        
+        #popupDetailsContainer {
+            overflow-y: auto !important;
+            max-height: 300px !important;
+            padding-top: 15px !important;
+        }
+        
+        /* Additional styles to ensure proper table display */
+        #accumulationTable {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            margin-bottom: 20px !important;
+        }
+        
+        #accumulationTable th, 
+        #accumulationTable td {
+            padding: 12px 8px !important;
+            text-align: left !important;
+            border-bottom: 1px solid #ddd !important;
+            vertical-align: middle !important;
+        }
+        
+        #accumulationTable th {
+            background-color: #006666 !important;
+            color: white !important;
+            font-weight: bold !important;
+            padding: 15px 8px !important;
+            border-bottom: 2px solid #004444 !important;
+        }
+        
+        #accumulationTable th:first-child {
+            border-top-left-radius: 4px !important;
+        }
+        
+        #accumulationTable th:last-child {
+            border-top-right-radius: 4px !important;
+        }
+        
+        /* Adjust table zebra striping for better readability */
+        #accumulationTable tr:nth-child(even) {
+            background-color: #f2f9f9 !important;
+        }
+        
+        #accumulationTable tr:hover {
+            background-color: #e0f2f2 !important;
+        }
+        
+        /* Event tag styling */
+        .event-tag {
+            display: inline-block !important;
+            padding: 2px 6px !important;
+            background-color: #f1f1f1 !important;
+            border-radius: 4px !important;
+            margin: 2px !important;
+            font-size: 0.9em !important;
+        }
+        
+        /* Search box styling */
+        .search-box {
+            margin-bottom: 15px !important;
+        }
+        
+        .search-box input {
+            width: 100% !important;
+            padding: 8px 12px !important;
+            border: 1px solid #ddd !important;
+            border-radius: 4px !important;
+            font-size: 14px !important;
+        }
+        
+        /* Additional styles for the enhanced buy candidates view */
+        .risk-rating {
+            display: inline-block !important;
+            font-size: 0.8em !important;
+            padding: 2px 6px !important;
+            border-radius: 4px !important;
+            margin-top: 5px !important;
+        }
+        
+        .risk-low {
+            background-color: #e8f5e9 !important;
+            color: #2e7d32 !important;
+            border: 1px solid #81c784 !important;
+        }
+        
+        .risk-medium {
+            background-color: #fff8e1 !important;
+            color: #ff8f00 !important;
+            border: 1px solid #ffd54f !important;
+        }
+        
+        .risk-high {
+            background-color: #ffebee !important;
+            color: #c62828 !important;
+            border: 1px solid #e57373 !important;
+        }
+        
+        .buy-timeframe {
+            font-weight: bold !important;
+            padding: 4px 8px !important;
+            border-radius: 4px !important;
+            background-color: #e3f2fd !important;
+            color: #0277bd !important;
+            border: 1px solid #90caf9 !important;
+            display: inline-block !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <header>
+            <h1>Big Player Accumulation Detector</h1>
+            <div class="nav-links">
+                <!-- Navigation links will be populated by common-nav.js -->
+            </div>
+        </header>
+
+        <div class="info-box">
+            <h4>About Big Player Accumulation</h4>
+            <p>This tool detects stocks that are likely being accumulated by institutional investors before a significant price rise. It combines Wyckoff method, Volume Spread Analysis, OBV trends, and RSI divergences to identify accumulation patterns.</p>
+            <ul>
+                <li><strong>Wyckoff Patterns:</strong> Identifies structured accumulation phases including springs and tests</li>
+                <li><strong>Volume Analysis:</strong> Detects institutional footprints through volume signatures</li>
+                <li><strong>OBV Trends:</strong> Identifies positive OBV drift during consolidation phases</li>
+                <li><strong>RSI Divergences:</strong> Finds hidden momentum building during sideways price action</li>
+            </ul>
+        </div>
+
+        <div class="filter-section">
+            <h3>Detection Settings</h3>
+            
+            <div class="filter-group">
+                <label for="timeframeSelect">Analysis Timeframe:</label>
+                <select id="timeframeSelect">
+                    <option value="30">30 Days</option>
+                    <option value="60" selected>60 Days</option>
+                    <option value="90">90 Days</option>
+                    <option value="180">180 Days</option>
+                    <option value="365">365 Days (1 Year)</option>
+                    <option value="550">550 Days (1.5 Years)</option>
+                </select>
+                
+                <label for="sensitivitySlider">Detection Sensitivity:</label>
+                <div style="width: 200px;">
+                    <input type="range" id="sensitivitySlider" min="1" max="10" value="5">
+                    <div class="slider-label">
+                        <span>Less</span>
+                        <span>More</span>
+                    </div>
+                </div>
+                
+                <label for="minConfidenceSelect">Minimum Confidence:</label>
+                <select id="minConfidenceSelect">
+                    <option value="low">Low</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="high">High</option>
+                    <option value="veryhigh">Very High</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label>Pattern Types:</label>
+                <label>
+                    <input type="checkbox" id="patternWyckoff" checked>
+                    Wyckoff Accumulation
+                </label>
+                <label>
+                    <input type="checkbox" id="patternVSA" checked>
+                    Volume Spread Analysis
+                </label>
+                <label>
+                    <input type="checkbox" id="patternOBV" checked>
+                    OBV Trends
+                </label>
+                <label>
+                    <input type="checkbox" id="patternRSI" checked>
+                    RSI Divergence
+                </label>
+            </div>
+            
+            <div class="filter-group">
+                <label>Technical Settings:</label>
+                <label for="rsiPeriod">RSI Period:</label>
+                <input type="number" id="rsiPeriod" min="7" max="50" value="14" style="width: 60px;">
+                
+                <label for="obvSensitivity">OBV Sensitivity:</label>
+                <div style="width: 150px;">
+                    <input type="range" id="obvSensitivity" min="1" max="10" value="5">
+                </div>
+                
+                <div class="toggle-container">
+                    <span>Multi-Timeframe:</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="multiTimeframeToggle" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                
+                <!-- Add OBV Test Button -->
+                <button id="testOBVBtn" class="action-btn" style="margin-left: 15px; background-color: #e0f2f2; color: #006666;">Test OBV Data</button>
+            </div>
+            
+            <div class="button-group">
+                <button id="refreshBtn" class="action-btn">Refresh Detections</button>
+                <button id="autoRefreshBtn" class="action-btn">Enable Auto Refresh</button>
+                <button id="addManualStockBtn" class="action-btn">Manual Analysis</button>
+            </div>
+        </div>
+        
+        <div id="messageContainer"></div>
+        <div id="loadingIndicator" class="loading-spinner" style="display: none;">
+            <div class="spinner"></div>
+        </div>
+        
+        <div class="tabs">
+            <div class="tab" data-tab="results">Detection Results</div>
+            <div class="tab" data-tab="patterns">Pattern Analysis</div>
+            <div class="tab" data-tab="volume">Volume Analysis</div>
+            <div class="tab active" data-tab="conclusion">Buy Candidates</div>
+        </div>
+        
+        <div id="resultsContent" class="tab-content">
+            <div class="search-box">
+                <input type="text" id="stockSearchInput" placeholder="Search stocks...">
+            </div>
+            
+            <table id="accumulationTable">
+                <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th>Price</th>
+                        <th>Score</th>
+                        <th>Confidence</th>
+                        <th>Patterns</th>
+                        <th>Volume Signature</th>
+                        <th>Days in Accumulation</th>
+                        <th>Actions</th>
+                        <th>Chart</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Accumulation stocks will be displayed here -->
+                </tbody>
+            </table>
+        </div>
+        
+        <div id="patternsContent" class="tab-content">
+            <div class="info-box">
+                <h4>Pattern Analysis</h4>
+                <p>This view shows details of detected accumulation patterns and their progression.</p>
+            </div>
+            
+            <div id="patternChartContainer" style="height: 400px;"></div>
+            
+            <table id="patternTable">
+                <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th>Pattern Type</th>
+                        <th>Phase</th>
+                        <th>Progression</th>
+                        <th>Key Events</th>
+                        <th>Confirmation</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Pattern details will be displayed here -->
+                </tbody>
+            </table>
+        </div>
+        
+        <div id="volumeContent" class="tab-content">
+            <div class="info-box">
+                <h4>Volume Analysis</h4>
+                <p>This view shows volume anomalies and institutional footprints in the selected stocks.</p>
+            </div>
+            
+            <div id="volumeChartContainer" style="height: 400px;"></div>
+            
+            <table id="volumeTable">
+                <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th>Volume Trend</th>
+                        <th>OBV Trend</th>
+                        <th>VWAP Relation</th>
+                        <th>Volume Anomalies</th>
+                        <th>Absorption</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Volume analysis will be displayed here -->
+                </tbody>
+            </table>
+        </div>
+        
+        <div id="conclusionContent" class="tab-content active">
+            <div class="info-box">
+                <h4>Top Buy Candidates</h4>
+                <p>This view shows the most promising accumulation stocks that have the strongest buy signals based on comprehensive analysis.</p>
+            </div>
+            
+            <table id="conclusionTable">
+                <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th>LTP</th>
+                        <th>Score</th>
+                        <th>Confidence</th>
+                        <th>Buy Signal</th>
+                        <th>Key Patterns</th>
+                        <th>Volume Evidence</th>
+                        <th>Timeframe</th>
+                        <th>Actions</th>
+                        <th>Chart</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Top buy candidates will be displayed here -->
+                </tbody>
+            </table>
+            
+            <div id="noCandidatesMessage" style="display: none; padding: 20px; text-align: center; background-color: #f9f9f9; border-radius: 4px; margin-top: 20px;">
+                <h3>No Strong Buy Candidates Found</h3>
+                <p>Try adjusting the sensitivity settings or minimum confidence level to find more potential candidates.</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Manual stock analysis form -->
+    <div id="manualStockForm" class="popup-form" style="display: none;">
+        <h3>Manual Stock Analysis</h3>
+        <div class="form-group">
+            <label for="manualSymbol">Stock Symbol:</label>
+            <input type="text" id="manualSymbol" placeholder="Enter stock symbol">
+        </div>
+        <div class="button-group">
+            <button id="saveManualStockBtn" class="action-btn">Analyze</button>
+            <button id="cancelManualStockBtn" class="action-btn secondary">Cancel</button>
+        </div>
+    </div>
+    
+    <!-- Chart popup container -->
+    <div class="chart-popup">
+        <div class="chart-popup-content">
+            <div class="chart-popup-header">
+                <h3 id="popupChartTitle">Stock Chart</h3>
+                <button class="chart-popup-close">×</button>
+            </div>
+            <div class="chart-popup-body">
+                <div id="popupChartContainer"></div>
+                <div id="popupDetailsContainer"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="api-service.js"></script>
+    <script src="common-nav.js"></script>
+    <script src="common-watchlist.js"></script>
+    <script src="big-player-accumulation.js"></script>
+</body>
+</html> 

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEPSE Stock Screener</title>
+    <link rel="stylesheet" href="dashboard.css">
+    <!-- TradingView Lightweight Charts Library -->
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body>
+    <div class="dashboard-container">
+        <header>
+            <h1>NEPSE Stock Watchlist</h1>
+            <div class="nav-links">
+                <!-- Navigation links will be populated by common-nav.js -->
+            </div>
+        </header>
+
+        <!-- Stock Input Section -->
+        <div class="stock-input-form">
+            <div class="input-group">
+                <input type="text" 
+                       list="stockSuggestions" 
+                       id="stockSymbol" 
+                       placeholder="Enter stock symbol"
+                       autocomplete="off">
+                <datalist id="stockSuggestions"></datalist>
+            </div>
+            <div class="input-group">
+                <input type="number" 
+                       id="supportPrice1" 
+                       placeholder="Support Price 1"
+                       step="0.01"
+                       min="0">
+            </div>
+            <div class="input-group">
+                <input type="number" 
+                       id="supportPrice2" 
+                       placeholder="Support Price 2"
+                       step="0.01"
+                       min="0">
+            </div>
+            <div class="input-group">
+                <input type="number" 
+                       id="supportPrice3" 
+                       placeholder="Support Price 3"
+                       step="0.01"
+                       min="0">
+            </div>
+            <div class="input-group">
+                <input type="number" 
+                       id="upperLimit" 
+                       placeholder="Upper Limit"
+                       step="0.01"
+                       min="0">
+            </div>
+            <div class="folder-select">
+                <select id="folderSelect">
+                    <option value="all">All Stocks</option>
+                    <!-- Folder options will be dynamically added here -->
+                </select>
+                <button id="createFolderBtn">Create Folder</button>
+            </div>
+            <button id="addStockBtn">Add Stock</button>
+        </div>
+
+        <div id="messageContainer"></div>
+        <div id="loadingIndicator" class="loading-spinner" style="display: none;">
+            <div class="spinner"></div>
+        </div>
+
+        <div class="excel-buttons">
+            <div class="search-box">
+                <input type="text" id="stockSearchInput" placeholder="Search stocks...">
+            </div>
+            <input type="file" id="uploadExcel" accept=".xlsx, .xls" />
+            <button id="downloadExcel">Download Excel</button>
+            <button id="filterSupportStocksBtn">Filter Support Stocks</button>
+            <div class="view-toggles">
+            </div>
+        </div>
+
+        <main>
+            <table id="stockTable">
+                <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th>LTP</th>
+                        <th>Support Price 1</th>
+                        <th>Difference 1 (%)</th>
+                        <th>Support Price 2</th>
+                        <th>Difference 2 (%)</th>
+                        <th>Support Price 3</th>
+                        <th>Difference 3 (%)</th>
+                        <th>Upper Limit</th>
+                        <th>UL Diff (%)</th>
+                        <th>Actions</th>
+                        <th>Chart</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Stocks will be displayed here -->
+                </tbody>
+            </table>
+        </main>
+    </div>
+
+    <!-- Chart Popup for fullscreen view -->
+    <div class="chart-popup">
+        <div class="chart-popup-content">
+            <div class="chart-popup-header">
+                <h3 id="popupChartTitle">Stock Chart</h3>
+                <button class="chart-popup-close">&times;</button>
+            </div>
+            <div class="chart-popup-body">
+                <div id="popupChartContainer"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="api-service.js"></script>
+    <script src="common-nav.js"></script>
+    <script src="common-watchlist.js"></script>
+    <script src="dashboard.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+</body>
+</html>
