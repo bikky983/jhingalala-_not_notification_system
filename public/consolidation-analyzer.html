@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Consolidation Analyzer - NEPSE Stock Screener</title>
+    <link rel="stylesheet" href="dashboard.css">
+    <!-- D3.js library for charts -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        .score-section {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+        
+        .filter-section {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+
+        .filter-section h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .filter-group label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .filter-group input[type="number"] {
+            width: 70px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        
+        .action-buttons button {
+            padding: 10px 15px;
+            background-color: #2c3e50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .action-buttons button:hover {
+            background-color: #1a2530;
+        }
+
+        .chart-container {
+            position: relative;
+            width: 200px;
+            height: 100px;
+            cursor: pointer;
+        }
+        
+        .chart-container:hover {
+            box-shadow: 0 0 5px rgba(0,0,0,0.3);
+        }
+        
+        .strong-score {
+            background-color: rgba(76, 175, 80, 0.15);
+            font-weight: bold;
+        }
+        
+        .medium-score {
+            background-color: rgba(255, 152, 0, 0.15);
+        }
+        
+        .weak-score {
+            background-color: rgba(244, 67, 54, 0.1);
+        }
+        
+        .indicator-pill {
+            display: inline-block;
+            font-size: 0.75rem;
+            padding: 2px 6px;
+            border-radius: 10px;
+            margin-right: 3px;
+            margin-bottom: 3px;
+        }
+        
+        .positive-indicator {
+            background-color: rgba(76, 175, 80, 0.2);
+            color: #2e7d32;
+        }
+        
+        .neutral-indicator {
+            background-color: rgba(255, 152, 0, 0.2);
+            color: #ef6c00;
+        }
+        
+        .negative-indicator {
+            background-color: rgba(244, 67, 54, 0.2);
+            color: #c62828;
+        }
+        
+        .indicators-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 3px;
+        }
+        
+        .multi-chart-container {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+        }
+        
+        .chart-popup {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .chart-popup-content {
+            background-color: white;
+            width: 90%;
+            max-width: 1200px;
+            max-height: 90vh;
+            border-radius: 5px;
+            overflow: auto;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .chart-popup-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 15px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .chart-popup-body {
+            padding: 15px;
+            overflow: auto;
+        }
+        
+        .chart-popup-close {
+            border: none;
+            background: none;
+            font-size: 24px;
+            cursor: pointer;
+        }
+        
+        /* New styles for pattern recognition */
+        .pattern-indicator {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: bold;
+            margin-right: 5px;
+            background-color: #e3f2fd;
+            color: #1976d2;
+            border: 1px solid #bbdefb;
+        }
+        
+        .pattern-neutral {
+            background-color: #e8eaf6;
+            color: #3949ab;
+            border-color: #c5cae9;
+        }
+        
+        .pattern-bullish {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+            border-color: #c8e6c9;
+        }
+        
+        .pattern-bearish {
+            background-color: #ffebee;
+            color: #c62828;
+            border-color: #ffcdd2;
+        }
+        
+        .support-resistance-indicator {
+            display: inline-block;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-size: 0.75em;
+            margin-right: 3px;
+        }
+        
+        .support-level {
+            background-color: rgba(76, 175, 80, 0.1);
+            color: #2e7d32;
+            border: 1px solid rgba(76, 175, 80, 0.3);
+        }
+        
+        .resistance-level {
+            background-color: rgba(244, 67, 54, 0.1);
+            color: #c62828;
+            border: 1px solid rgba(244, 67, 54, 0.3);
+        }
+        
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background-color: #f5f5f5;
+            border: 1px solid #ddd;
+        }
+        
+        .tab.active {
+            background-color: #2c3e50;
+            color: white;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <header>
+            <h1>Consolidation Analyzer</h1>
+            <div class="nav-links">
+                <!-- Navigation links will be populated by common-nav.js -->
+            </div>
+        </header>
+        
+        <div class="filter-options">
+            <div class="filter-section">
+                <h3>Advanced Consolidation Settings</h3>
+                <div class="filter-group">
+                    <label for="lookbackPeriod">Analysis Period (days):</label>
+                    <input type="number" id="lookbackPeriod" value="20" min="5" max="100" step="1">
+                </div>
+                <div class="filter-group">
+                    <label for="bb-period">Bollinger Band Period:</label>
+                    <input type="number" id="bb-period" value="20" min="5" max="50" step="1">
+                </div>
+                <div class="filter-group">
+                    <label for="atr-period">ATR Period:</label>
+                    <input type="number" id="atr-period" value="14" min="5" max="30" step="1">
+                </div>
+                <div class="filter-group">
+                    <label for="rsi-period">RSI Period:</label>
+                    <input type="number" id="rsi-period" value="14" min="5" max="30" step="1">
+                </div>
+                <div class="filter-group">
+                    <label for="min-score">Min. Consolidation Score:</label>
+                    <input type="number" id="min-score" value="6" min="1" max="10" step="1">
+                </div>
+                <div class="filter-group">
+                    <label>
+                        <input type="checkbox" id="showWatchlistOnly">
+                        Dashboard Stocks Only
+                    </label>
+                </div>
+                <div class="filter-group">
+                    <label>
+                        <input type="checkbox" id="requireRsiConfirmation" checked>
+                        Require RSI Confirmation
+                    </label>
+                </div>
+            </div>
+            
+            <div class="filter-section">
+                <h3>Pattern Recognition Settings</h3>
+                <div class="filter-group">
+                    <label for="pattern-filter">Pattern Type:</label>
+                    <select id="pattern-filter">
+                        <option value="all">All Patterns</option>
+                        <option value="rectangle">Rectangle</option>
+                        <option value="ascending_triangle">Ascending Triangle</option>
+                        <option value="descending_triangle">Descending Triangle</option>
+                        <option value="symmetrical_triangle">Symmetrical Triangle</option>
+                        <option value="pennant">Pennant</option>
+                        <option value="flag">Flag</option>
+                        <option value="wedge">Wedge</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="min-pattern-confidence">Min Pattern Confidence:</label>
+                    <select id="min-pattern-confidence">
+                        <option value="0.5">Low (50%+)</option>
+                        <option value="0.6" selected>Medium (60%+)</option>
+                        <option value="0.7">High (70%+)</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>
+                        <input type="checkbox" id="filterByBreakoutBias">
+                        Filter by Breakout Bias
+                    </label>
+                    <select id="breakout-bias" disabled>
+                        <option value="all">All</option>
+                        <option value="bullish">Bullish</option>
+                        <option value="bearish">Bearish</option>
+                        <option value="neutral">Neutral</option>
+                        <option value="trend_continuation">Trend Continuation</option>
+                        <option value="reversal">Reversal</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="filter-section">
+                <h3>Support/Resistance Analysis</h3>
+                <div class="filter-group">
+                    <label for="sr-sensitivity">S/R Detection Sensitivity:</label>
+                    <input type="number" id="sr-sensitivity" value="1.5" min="0.5" max="5" step="0.1">
+                </div>
+                <div class="filter-group">
+                    <label>
+                        <input type="checkbox" id="nearSupportResistance" checked>
+                        Highlight Near S/R Levels
+                    </label>
+                </div>
+                <div class="filter-group">
+                    <label for="sr-proximity">S/R Proximity Threshold (%):</label>
+                    <input type="number" id="sr-proximity" value="3" min="0.5" max="10" step="0.5">
+                </div>
+            </div>
+        </div>
+        
+        <div class="tabs">
+            <div class="tab active" data-tab="consolidation">Consolidation Analysis</div>
+            <div class="tab" data-tab="patterns">Pattern Recognition</div>
+            <div class="tab" data-tab="sr-analysis">Support/Resistance</div>
+        </div>
+        
+        <div class="score-section">
+            <h3>Enhanced Consolidation Scoring System</h3>
+            <p>Scores are calculated based on multiple indicators combined:</p>
+            <ul>
+                <li><strong>8-10:</strong> Strong consolidation pattern (high probability setup)</li>
+                <li><strong>5-7:</strong> Moderate consolidation (watch for confirmation)</li>
+                <li><strong>1-4:</strong> Weak/Early consolidation (requires more time)</li>
+            </ul>
+            <p>New factors in scoring: RSI consolidation, pattern recognition, and support/resistance proximity</p>
+        </div>
+        
+        <div class="action-buttons">
+            <button id="refreshAnalysisBtn">Refresh Analysis</button>
+            <button id="autoRefreshBtn" class="toggle-btn">Enable Auto Refresh</button>
+            <button id="addToWatchlistBtn">Add Selected to Watchlist</button>
+        </div>
+
+        <div id="messageContainer"></div>
+        <div id="loadingIndicator" class="loading-spinner" style="display: none;">
+            <div class="spinner"></div>
+        </div>
+
+        <main>
+            <div id="consolidationTab" class="tab-content active">
+                <table id="consolidationTable">
+                    <thead>
+                        <tr>
+                            <th>Select</th>
+                            <th>Symbol</th>
+                            <th>Current Price</th>
+                            <th>Consolidation Score</th>
+                            <th>Pattern</th>
+                            <th>Indicators</th>
+                            <th>Days in Range</th>
+                            <th>Volume Trend</th>
+                            <th>Actions</th>
+                            <th>Chart</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Stocks will be displayed here -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <div id="patternsTab" class="tab-content">
+                <table id="patternsTable">
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Pattern Type</th>
+                            <th>Confidence</th>
+                            <th>Breakout Bias</th>
+                            <th>Current Price</th>
+                            <th>Close to S/R</th>
+                            <th>Chart</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Pattern results will be displayed here -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <div id="sr-analysisTab" class="tab-content">
+                <table id="srAnalysisTable">
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Current Price</th>
+                            <th>Support Levels</th>
+                            <th>Resistance Levels</th>
+                            <th>S/R Zones</th>
+                            <th>Chart</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Support/Resistance analysis will be displayed here -->
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Chart Popup for fullscreen view -->
+    <div class="chart-popup">
+        <div class="chart-popup-content">
+            <div class="chart-popup-header">
+                <h3 id="popupChartTitle">Advanced Analysis</h3>
+                <button class="chart-popup-close">&times;</button>
+            </div>
+            <div class="chart-popup-body">
+                <div class="multi-chart-container" style="display: flex; flex-direction: column; width: 100%;">
+                    <div id="popupPriceChart" style="height: 400px; margin-bottom: 20px;"></div>
+                    <div id="popupVolumeChart" style="height: 150px; margin-bottom: 20px;"></div>
+                    <div id="popupBBWChart" style="height: 150px; margin-bottom: 20px;"></div>
+                    <div id="popupATRChart" style="height: 150px; margin-bottom: 20px;"></div>
+                </div>
+                <div id="consolidationDetails" class="score-section">
+                    <!-- Detailed analysis will be displayed here -->
+                </div>
+                <div id="patternDetails" class="score-section" style="display: none;">
+                    <!-- Pattern details will be displayed here -->
+                </div>
+                <div id="srDetails" class="score-section" style="display: none;">
+                    <!-- Support/Resistance details will be displayed here -->
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="common-nav.js"></script>
+    <script src="common-watchlist.js"></script>
+    <script src="consolidation-analyzer.js"></script>
+</body>
+</html> 

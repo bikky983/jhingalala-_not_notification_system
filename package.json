@@ -1,0 +1,32 @@
+{
+  "name": "stock-screener",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "npm run netlify-build",
+    "netlify-build": "echo 'Using JSON file from GitHub repository' && exit 0",
+    "start": "node server.js",
+    "download": "node data-scripts/nepse_downloader.js",
+    "process": "node data-scripts/run_py_script.js --now",
+    "schedule": "node data-scripts/scheduler.js",
+    "run-now": "node data-scripts/scheduler.js --now",
+    "download-only": "node data-scripts/scheduler.js --download-only",
+    "process-only": "node data-scripts/scheduler.js --process-only"
+  },
+  "dependencies": {
+    "axios": "^1.6.7",
+    "cheerio": "^1.0.0-rc.12",
+    "cors": "^2.8.5",
+    "puppeteer": "^22.8.2",
+    "node-schedule": "^2.1.1",
+    "fs-extra": "^11.2.0",
+    "glob": "^10.3.10"
+  },
+  "devDependencies": {
+    "netlify-cli": "^17.19.0"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "NEPSE Stock Screener with serverless functions"
+}
+
