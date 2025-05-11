@@ -1,0 +1,44 @@
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+  command = "npm run netlify-build"
+
+[functions]
+  node_bundler = "esbuild"
+  directory = "netlify/functions"
+  included_files = ["netlify/functions/**"]
+
+[[redirects]]
+  from = "/"
+  to = "/dashboard.html"
+  status = 200
+
+[[redirects]]
+  from = "/api/stocks"
+  to = "/.netlify/functions/getStocks"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/prices"
+  to = "/.netlify/functions/getPrices"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/meroshare/*"
+  to = "/.netlify/functions/meroShareProxy"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/ipo/*"
+  to = "/.netlify/functions/ipoManager"
+  status = 200
+  force = true
+
+[[headers]]
+  for = "/*"
+    [headers.values]
+    Access-Control-Allow-Origin = "*"
+
