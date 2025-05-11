@@ -1,8 +1,14 @@
 const axios = require('axios');
+const https = require('https');
 
 // Constants from the original CLI
 const MS_API_BASE = "https://webbackend.cdsc.com.np/api";
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36";
+
+// Create a custom HTTPS agent that doesn't verify certificates
+const httpsAgent = new https.Agent({
+    rejectUnauthorized: false
+});
 
 // Base headers for API requests
 const BASE_HEADERS = {
@@ -126,7 +132,8 @@ async function getCapitalList() {
     try {
         // Create a clean session
         const session = axios.create({
-            headers: { ...BASE_HEADERS, "Authorization": "null" }
+            headers: { ...BASE_HEADERS, "Authorization": "null" },
+            httpsAgent: httpsAgent // Add httpsAgent for SSL certificate bypass
         });
         
         const response = await session.get(`${MS_API_BASE}/meroShare/capital/`);
@@ -171,7 +178,8 @@ async function loginAccount(account) {
                 ...BASE_HEADERS,
                 "Authorization": "null",
                 "Content-Type": "application/json"
-            }
+            },
+            httpsAgent: httpsAgent // Add httpsAgent for SSL certificate bypass
         });
         
         // Prepare login data
@@ -231,7 +239,8 @@ async function getAccountDetails(account) {
             headers: { 
                 ...BASE_HEADERS,
                 "Authorization": account.auth_token
-            }
+            },
+            httpsAgent: httpsAgent // Add httpsAgent for SSL certificate bypass
         });
         
         // Get account details
@@ -272,7 +281,8 @@ async function getBankDetails(account) {
             headers: { 
                 ...BASE_HEADERS,
                 "Authorization": account.auth_token
-            }
+            },
+            httpsAgent: httpsAgent // Add httpsAgent for SSL certificate bypass
         });
         
         // Get bank ID
@@ -338,7 +348,8 @@ async function getApplicableIssues(account) {
             headers: { 
                 ...BASE_HEADERS,
                 "Authorization": account.auth_token
-            }
+            },
+            httpsAgent: httpsAgent // Add httpsAgent for SSL certificate bypass
         });
         
         const response = await session.get(`${MS_API_BASE}/meroShare/companyShare/applicableIssue/`);
@@ -374,7 +385,8 @@ async function applyForIpo(account, shareId, quantity) {
                 "Content-Type": "application/json",
                 "Pragma": "no-cache",
                 "Cache-Control": "no-cache"
-            }
+            },
+            httpsAgent: httpsAgent // Add httpsAgent for SSL certificate bypass
         });
         
         // Prepare application data
@@ -418,7 +430,8 @@ async function getResultCompanies(account) {
             headers: { 
                 ...BASE_HEADERS,
                 "Authorization": account.auth_token
-            }
+            },
+            httpsAgent: httpsAgent // Add httpsAgent for SSL certificate bypass
         });
         
         const response = await session.get(`${MS_API_BASE}/meroShare/applicationReport/report/applicantReport/`);
@@ -446,7 +459,8 @@ async function checkIpoResult(account, companyShareId) {
             headers: { 
                 ...BASE_HEADERS,
                 "Authorization": account.auth_token
-            }
+            },
+            httpsAgent: httpsAgent // Add httpsAgent for SSL certificate bypass
         });
         
         const response = await session.get(`${MS_API_BASE}/meroShare/applicantForm/existingForm/detail/${companyShareId}`);
@@ -479,7 +493,8 @@ async function getApplicationStatus(account) {
                 ...BASE_HEADERS,
                 "Authorization": account.auth_token,
                 "Content-Type": "application/json"
-            }
+            },
+            httpsAgent: httpsAgent // Add httpsAgent for SSL certificate bypass
         });
         
         const response = await session.post(`${MS_API_BASE}/meroShare/applicantForm/active/search/`, {});
