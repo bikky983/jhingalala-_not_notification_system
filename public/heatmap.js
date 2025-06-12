@@ -1,0 +1,948 @@
+document.addEventListener('DOMContentLoaded', function() {
+    // Get elements
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    const weekSelector = document.getElementById('weekSelector');
+    const applyFilterBtn = document.getElementById('applyFilterBtn');
+    const volumeViewBtn = document.getElementById('volumeViewBtn');
+    const changeViewBtn = document.getElementById('changeViewBtn');
+    const percentViewBtn = document.getElementById('percentViewBtn');
+    const getStocksBtn = document.getElementById('getStocksBtn');
+    const dashboardStocksOnlyCheckbox = document.getElementById('dashboardStocksOnlyCheckbox');
+    
+    // State variables
+    let stockData = [];
+    let weeklyData = {};
+    let currentDateRange = {
+        startDate: null,
+        endDate: null
+    };
+    let currentView = 'volume'; // 'volume', 'change', 'percent'
+    let dashboardStocksOnly = false;
+    let dashboardStocks = [];
+    let stockSectors = {};
+    
+    // Initialize event listeners
+    initEventListeners();
+    
+    // Load data on page load
+    loadDashboardData();
+    loadData();
+    
+    // Get Stocks button functionality
+    if (getStocksBtn) {
+        getStocksBtn.addEventListener('click', function() {
+            // Create a link to download the stocks.xlsx file
+            const downloadLink = document.createElement('a');
+            downloadLink.href = 'stocks.xlsx';
+            downloadLink.download = 'stocks.xlsx';
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+        });
+    }
+    
+    // Functions
+    function initEventListeners() {
+        // Keep the Apply button functionality as an option to select a specific week
+        applyFilterBtn.addEventListener('click', function() {
+            const selectedWeek = weekSelector.value;
+            if (selectedWeek) {
+                const [year, week] = selectedWeek.split('-W');
+                const weekNumber = parseInt(week);
+                const dates = getSundayToSaturdayDatesForWeek(parseInt(year), weekNumber);
+                currentDateRange = dates;
+                processWeeklyData();
+                updateVisualizations();
+                // Update date range display
+                updateDateRangeDisplay();
+            }
+        });
+        
+        volumeViewBtn.addEventListener('click', function() {
+            setActiveView('volume');
+        });
+        
+        changeViewBtn.addEventListener('click', function() {
+            setActiveView('change');
+        });
+        
+        percentViewBtn.addEventListener('click', function() {
+            setActiveView('percent');
+        });
+        
+        dashboardStocksOnlyCheckbox.addEventListener('change', function() {
+            dashboardStocksOnly = this.checked;
+            processWeeklyData();
+            updateVisualizations();
+        });
+    }
+    
+    function setActiveView(view) {
+        currentView = view;
+        
+        // Update UI active state
+        volumeViewBtn.classList.toggle('active', view === 'volume');
+        changeViewBtn.classList.toggle('active', view === 'change');
+        percentViewBtn.classList.toggle('active', view === 'percent');
+        
+        // Update visualizations with new view
+        updateVisualizations();
+    }
+    
+    function loadDashboardData() {
+        try {
+            // Get dashboard stocks from local storage
+            const watchlistData = localStorage.getItem('watchlistData');
+            const foldersData = localStorage.getItem('folders');
+            
+            dashboardStocks = [];
+            stockSectors = {};
+            
+            // First, try to get folder information
+            if (foldersData) {
+                try {
+                    const folders = JSON.parse(foldersData);
+                    console.log('Loaded folders:', folders);
+                    
+                    // Process each folder (sector)
+                    if (Array.isArray(folders)) {
+                        folders.forEach(folder => {
+                            if (typeof folder === 'string') {
+                                // Skip the "all" folder
+                                if (folder.toLowerCase() !== 'all') {
+                                    console.log(`Processing folder: ${folder}`);
+                                    
+                                    // Get stocks in this folder
+                                    const folderStocksKey = `folder_${folder}`;
+                                    const folderStocksData = localStorage.getItem(folderStocksKey);
+                                    
+                                    if (folderStocksData) {
+                                        try {
+                                            const folderStocks = JSON.parse(folderStocksData);
+                                            if (Array.isArray(folderStocks)) {
+                                                folderStocks.forEach(stock => {
+                                                    if (typeof stock === 'string') {
+                                                        dashboardStocks.push(stock);
+                                                        stockSectors[stock] = folder;
+                                                        console.log(`Assigned sector ${folder} to stock ${stock}`);
+                                                    }
+                                                });
+                                            }
+                                        } catch (e) {
+                                            console.error(`Error parsing folder stocks for ${folder}:`, e);
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.error('Error parsing folders data:', e);
+                }
+            }
+            
+            // Then, process the watchlist data as a fallback
+            if (watchlistData) {
+                try {
+                    const parsedData = JSON.parse(watchlistData);
+                    
+                    // Extract stocks and their folders (sectors)
+                    Object.entries(parsedData).forEach(([symbol, data]) => {
+                        // Only add to dashboardStocks if not already added
+                        if (!dashboardStocks.includes(symbol)) {
+                            dashboardStocks.push(symbol);
+                        }
+                        
+                        // Only set sector if not already set
+                        if (!stockSectors[symbol] && data.folder) {
+                            stockSectors[symbol] = data.folder;
+                            console.log(`Assigned sector ${data.folder} to stock ${symbol} from watchlist`);
+                        }
+                    });
+                } catch (e) {
+                    console.error('Error parsing watchlist data:', e);
+                }
+            }
+            
+            // Log the results
+            console.log(`Loaded ${dashboardStocks.length} stocks from dashboard`);
+            console.log(`Assigned sectors to ${Object.keys(stockSectors).length} stocks`);
+            
+            // If no sectors were found, try another approach
+            if (Object.keys(stockSectors).length === 0) {
+                console.log('No sectors found. Checking localStorage for folder information directly.');
+                
+                // Scan all localStorage keys for folder_ prefix
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && key.startsWith('folder_') && key !== 'folder_all') {
+                        const sectorName = key.replace('folder_', '');
+                        try {
+                            const sectorStocks = JSON.parse(localStorage.getItem(key));
+                            if (Array.isArray(sectorStocks)) {
+                                sectorStocks.forEach(stock => {
+                                    if (typeof stock === 'string') {
+                                        if (!dashboardStocks.includes(stock)) {
+                                            dashboardStocks.push(stock);
+                                        }
+                                        stockSectors[stock] = sectorName;
+                                        console.log(`Assigned sector ${sectorName} to stock ${stock} from direct folder scan`);
+                                    }
+                                });
+                            }
+                        } catch (e) {
+                            console.error(`Error parsing sector stocks for ${sectorName}:`, e);
+                        }
+                    }
+                }
+                
+                console.log(`After direct scan: ${Object.keys(stockSectors).length} stocks with sectors`);
+            }
+        } catch (error) {
+            console.error('Error loading dashboard data:', error);
+        }
+    }
+    
+    async function loadData() {
+        try {
+            showLoading(true);
+            
+            // Use the existing file directly - don't use the apiService
+            // since we're not modifying the original apiService.js
+            const response = await fetch('organized_nepse_data.json');
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            
+            stockData = await response.json();
+            
+            // Set the date range to the last 9 days including today
+            setLastNineDays();
+            
+            // Initialize the week selector with the current week
+            const today = new Date();
+            const currentYear = today.getFullYear();
+            let currentWeekNum = getWeekNumber(today);
+            weekSelector.value = `${currentYear}-W${currentWeekNum.toString().padStart(2, '0')}`;
+            
+            // Process data for the selected week
+            processWeeklyData();
+            updateVisualizations();
+            // Update date range display
+            updateDateRangeDisplay();
+            
+        } catch (error) {
+            console.error('Error loading data:', error);
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    function setLastNineDays() {
+        const endDate = new Date(); // Today
+        const startDate = new Date();
+        startDate.setDate(endDate.getDate() - 8); // 8 days ago (to make 9 days total including today)
+        
+        // Set start date to beginning of day
+        startDate.setHours(0, 0, 0, 0);
+        
+        // Set end date to end of day
+        endDate.setHours(23, 59, 59, 999);
+        
+        currentDateRange = { startDate, endDate };
+        
+        console.log(`Date range set to: ${startDate.toDateString()} - ${endDate.toDateString()}`);
+    }
+    
+    function updateDateRangeDisplay() {
+        // Create or update a display element to show the current date range
+        let dateRangeDisplay = document.getElementById('dateRangeDisplay');
+        
+        if (!dateRangeDisplay) {
+            dateRangeDisplay = document.createElement('div');
+            dateRangeDisplay.id = 'dateRangeDisplay';
+            dateRangeDisplay.className = 'date-range-display';
+            
+            // Insert after the filters container
+            const filtersContainer = document.querySelector('.filters-container');
+            filtersContainer.parentNode.insertBefore(dateRangeDisplay, filtersContainer.nextSibling);
+        }
+        
+        // Format the dates
+        const startDateStr = currentDateRange.startDate.toLocaleDateString('en-US', { 
+            year: 'numeric', month: 'short', day: 'numeric' 
+        });
+        const endDateStr = currentDateRange.endDate.toLocaleDateString('en-US', { 
+            year: 'numeric', month: 'short', day: 'numeric' 
+        });
+        
+        // Calculate number of days
+        const dayDiff = Math.floor((currentDateRange.endDate - currentDateRange.startDate) / (1000 * 60 * 60 * 24)) + 1;
+        
+        // Update the content
+        dateRangeDisplay.innerHTML = `
+            <div class="date-range-info">
+                <h3>Current Analysis Period (${dayDiff} Days)</h3>
+                <p>${startDateStr} to ${endDateStr}</p>
+            </div>
+        `;
+    }
+    
+    function processWeeklyData() {
+        if (!currentDateRange.startDate || !currentDateRange.endDate || !stockData.length) return;
+        
+        // Group data by stock symbol and extract weekly information
+        const stockGroups = {};
+        
+        stockData.forEach(record => {
+            // Skip if we're filtering to dashboard stocks only and this isn't in the dashboard
+            if (dashboardStocksOnly && !dashboardStocks.includes(record.symbol)) {
+                return;
+            }
+            
+            const recordDate = new Date(record.time.replace(/_/g, '-'));
+            
+            // Check if record date falls within our date range
+            if (isDateInRange(recordDate, currentDateRange.startDate, currentDateRange.endDate)) {
+                if (!stockGroups[record.symbol]) {
+                    stockGroups[record.symbol] = [];
+                }
+                
+                stockGroups[record.symbol].push(record);
+            }
+        });
+        
+        // Calculate weekly metrics for each stock
+        weeklyData = {};
+        
+        Object.keys(stockGroups).forEach(symbol => {
+            const records = stockGroups[symbol];
+            
+            if (records.length > 0) {
+                // Sort by date
+                records.sort((a, b) => {
+                    return new Date(a.time.replace(/_/g, '-')) - new Date(b.time.replace(/_/g, '-'));
+                });
+                
+                // Handle potential missing data due to holidays
+                const firstRecord = records[0];
+                const lastRecord = records[records.length - 1];
+                
+                // Calculate weekly metrics
+                const weeklyOpen = firstRecord.open;
+                const weeklyClose = lastRecord.close;
+                const priceChange = weeklyClose - weeklyOpen;
+                const percentChange = (priceChange / weeklyOpen) * 100;
+                
+                // Calculate weekly high/low
+                let weeklyHigh = -Infinity;
+                let weeklyLow = Infinity;
+                let totalVolume = 0;
+                
+                records.forEach(record => {
+                    weeklyHigh = Math.max(weeklyHigh, record.high);
+                    weeklyLow = Math.min(weeklyLow, record.low);
+                    totalVolume += record.volume;
+                });
+                
+                // Calculate volatility (high-low range as percentage of open)
+                const volatility = ((weeklyHigh - weeklyLow) / weeklyOpen) * 100;
+                
+                // Calculate average daily volume
+                const avgDailyVolume = totalVolume / records.length;
+                
+                // Count trading days in the period
+                const tradingDays = records.length;
+                
+                // Calculate missing days (holidays)
+                const totalDaysInPeriod = 9; // Last 9 days
+                const holidayDays = totalDaysInPeriod - tradingDays;
+                
+                // Calculate simple RSI based on weekly data
+                const rsi = calculateSimpleRSI(records);
+                
+                // Get sector for this stock from dashboard, or use a performance-based classification
+                let sector = stockSectors[symbol];
+                
+                // If no sector is available, assign based on performance or set to Unclassified
+                if (!sector) {
+                    // Try to determine if this is a microfinance, hydropower, etc. based on symbol name pattern
+                    if (symbol.endsWith('LBL') || symbol.endsWith('MFI') || symbol.includes('MICRO')) {
+                        sector = 'MICROFINANCE';
+                    } else if (symbol.endsWith('HPC') || symbol.includes('HYDRO')) {
+                        sector = 'HYDROPOWER';
+                    } else if (symbol.endsWith('LIC') || symbol.includes('INSURANCE')) {
+                        sector = 'INSURANCE';
+                    } else if (symbol.endsWith('BNK') || symbol.includes('BANK')) {
+                        sector = 'BANKING';
+                    } else if (symbol.endsWith('FIN') || symbol.includes('FINANCE')) {
+                        sector = 'FINANCE';
+                    } else if (symbol.endsWith('DEV') || symbol.includes('DEVELOPMENT')) {
+                        sector = 'DEVELOPMENT_BANK';
+                    } else if (symbol.endsWith('MFG') || symbol.includes('MANUFACTURING')) {
+                        sector = 'MANUFACTURING';
+                    } else {
+                        sector = 'OTHER';
+                    }
+                    console.log(`No sector found for ${symbol}, assigned ${sector} based on pattern`);
+                }
+                
+                weeklyData[symbol] = {
+                    symbol,
+                    sector,
+                    open: weeklyOpen,
+                    close: weeklyClose,
+                    high: weeklyHigh,
+                    low: weeklyLow,
+                    priceChange,
+                    percentChange,
+                    volume: totalVolume,
+                    avgDailyVolume,
+                    volatility,
+                    tradingDays,
+                    holidayDays,
+                    rsi,
+                    dailyRecords: records
+                };
+            }
+        });
+    }
+    
+    function calculateSimpleRSI(records) {
+        if (records.length < 2) return 50; // Neutral RSI if not enough data
+        
+        let gains = 0;
+        let losses = 0;
+        
+        // Calculate gains and losses
+        for (let i = 1; i < records.length; i++) {
+            const change = records[i].close - records[i-1].close;
+            if (change >= 0) {
+                gains += change;
+            } else {
+                losses -= change; // Make losses positive
+            }
+        }
+        
+        // Average gains and losses
+        const avgGain = gains / (records.length - 1);
+        const avgLoss = losses / (records.length - 1);
+        
+        // Calculate RSI
+        if (avgLoss === 0) return 100; // All gains
+        
+        const rs = avgGain / avgLoss;
+        const rsi = 100 - (100 / (1 + rs));
+        
+        return rsi;
+    }
+    
+    function updateVisualizations() {
+        if (Object.keys(weeklyData).length === 0) return;
+        
+        // Convert weeklyData object to array for sorting
+        const dataArray = Object.values(weeklyData);
+        
+        // Update the detailed table
+        updateDetailedTable(dataArray);
+        
+        // Update heatmaps based on current view
+        updateHeatmaps(dataArray);
+        
+        // Create tree visualization
+        createTreemap(dataArray);
+    }
+    
+    function updateDetailedTable(dataArray) {
+        const tableBody = document.querySelector('#stockPerformanceTable tbody');
+        tableBody.innerHTML = '';
+        
+        // Sort by volume (descending)
+        dataArray.sort((a, b) => b.volume - a.volume);
+        
+        dataArray.forEach(stock => {
+            const row = document.createElement('tr');
+            
+            // Determine CSS classes based on values
+            const changeClass = stock.percentChange > 0 ? 'positive' : 
+                               stock.percentChange < 0 ? 'negative' : 'neutral';
+            
+            const volumeClass = isHighVolume(stock.volume, dataArray) ? 'high-volume' : '';
+            const volatilityClass = stock.volatility > 10 ? 'high-volatility' : 
+                                   stock.volatility < 3 ? 'low-volatility' : '';
+            
+            const holidayInfo = stock.holidayDays > 0 ? 
+                               `<span class="holiday-indicator">(${stock.holidayDays} holiday${stock.holidayDays > 1 ? 's' : ''})</span>` : '';
+            
+            let rsiClass = '';
+            if (stock.rsi > 70) rsiClass = 'high-volatility';
+            else if (stock.rsi < 30) rsiClass = 'low-volatility';
+            
+            row.innerHTML = `
+                <td>${stock.symbol}</td>
+                <td>${stock.sector || 'N/A'}</td>
+                <td>${stock.open.toFixed(2)}</td>
+                <td>${stock.close.toFixed(2)}</td>
+                <td class="${changeClass}">${stock.percentChange.toFixed(2)}%</td>
+                <td class="${volumeClass}">${formatNumber(stock.volume)} ${holidayInfo}</td>
+                <td>${stock.high.toFixed(2)}</td>
+                <td>${stock.low.toFixed(2)}</td>
+                <td class="${volatilityClass}">${stock.volatility.toFixed(2)}%</td>
+                <td class="${rsiClass}">${stock.rsi.toFixed(1)}</td>
+            `;
+            
+            tableBody.appendChild(row);
+        });
+    }
+    
+    function updateHeatmaps(dataArray) {
+        // Clear previous visualizations
+        document.getElementById('gainersHeatmap').innerHTML = '';
+        document.getElementById('losersHeatmap').innerHTML = '';
+        document.getElementById('volumeHeatmap').innerHTML = '';
+        document.getElementById('momentumHeatmap').innerHTML = '';
+        
+        // Top gainers (highest percent change)
+        const gainers = [...dataArray]
+            .filter(stock => stock.percentChange > 0)
+            .sort((a, b) => b.percentChange - a.percentChange)
+            .slice(0, 15);
+            
+        // Top losers (lowest percent change)
+        const losers = [...dataArray]
+            .filter(stock => stock.percentChange < 0)
+            .sort((a, b) => a.percentChange - b.percentChange)
+            .slice(0, 15);
+            
+        // Highest volume
+        const highestVolume = [...dataArray]
+            .sort((a, b) => b.volume - a.volume)
+            .slice(0, 15);
+            
+        // Momentum leaders (high RSI and volume)
+        const momentumLeaders = [...dataArray]
+            .filter(stock => stock.rsi > 50 && stock.percentChange > 0)
+            .sort((a, b) => (b.rsi + b.percentChange) - (a.rsi + a.percentChange))
+            .slice(0, 15);
+        
+        // Create heatmaps
+        createHeatmap('gainersHeatmap', gainers, currentView);
+        createHeatmap('losersHeatmap', losers, currentView);
+        createHeatmap('volumeHeatmap', highestVolume, currentView);
+        createHeatmap('momentumHeatmap', momentumLeaders, currentView);
+    }
+    
+    function createHeatmap(containerId, data, viewType) {
+        const container = document.getElementById(containerId);
+        
+        if (!data || data.length === 0) {
+            container.innerHTML = '<div class="no-data">No data available</div>';
+            return;
+        }
+        
+        // Determine value and color scale based on view type
+        let valueAccessor, colorScale, format;
+        
+        if (viewType === 'volume') {
+            valueAccessor = d => d.volume;
+            colorScale = d3.scaleSequential(d3.interpolateBlues)
+                .domain([0, d3.max(data, d => d.volume)]);
+            format = formatNumber;
+        } else if (viewType === 'change') {
+            valueAccessor = d => d.priceChange;
+            colorScale = d3.scaleSequential()
+                .domain([d3.min(data, d => d.priceChange), d3.max(data, d => d.priceChange)])
+                .interpolator(d => {
+                    return d < 0 ? d3.interpolateReds(Math.abs(d) / Math.abs(d3.min(data, d => d.priceChange))) : d3.interpolateGreens(d / d3.max(data, d => Math.max(0, d.priceChange)));
+                });
+            format = d => d.toFixed(2);
+        } else { // percent
+            valueAccessor = d => d.percentChange;
+            colorScale = d3.scaleSequential()
+                .domain([d3.min(data, d => d.percentChange), d3.max(data, d => d.percentChange)])
+                .interpolator(d => {
+                    return d < 0 ? d3.interpolateReds(Math.abs(d) / Math.abs(d3.min(data, d => d.percentChange))) : d3.interpolateGreens(d / d3.max(data, d => Math.max(0, d.percentChange)));
+                });
+            format = d => d.toFixed(2) + '%';
+        }
+        
+        // Set up dimensions
+        const margin = { top: 20, right: 20, bottom: 30, left: 60 };
+        const width = container.clientWidth - margin.left - margin.right;
+        const height = 280 - margin.top - margin.bottom;
+        
+        // Create the SVG container
+        const svg = d3.select(`#${containerId}`)
+            .append('svg')
+            .attr('width', width + margin.left + margin.right)
+            .attr('height', height + margin.top + margin.bottom)
+            .append('g')
+            .attr('transform', `translate(${margin.left},${margin.top})`);
+        
+        // Set up scales
+        const x = d3.scaleBand()
+            .domain(data.map(d => d.symbol))
+            .range([0, width])
+            .padding(0.1);
+        
+        // Determine y-scale domain based on data values
+        // For negative values (e.g., in losers chart), we need to include negatives in the domain
+        const minValue = d3.min(data, valueAccessor);
+        const maxValue = d3.max(data, valueAccessor);
+        const yDomain = [
+            Math.min(0, minValue), // Use 0 or the minimum value if it's negative
+            Math.max(0, maxValue)  // Use 0 or the maximum value if it's positive
+        ];
+        
+        const y = d3.scaleLinear()
+            .domain(yDomain)
+            .range([height, 0])
+            .nice(); // Add nice() to round the domain to nice values
+        
+        // Add a zero line if domain includes negative values
+        if (minValue < 0) {
+            svg.append('line')
+                .attr('x1', 0)
+                .attr('y1', y(0))
+                .attr('x2', width)
+                .attr('y2', y(0))
+                .attr('stroke', '#888')
+                .attr('stroke-width', 1)
+                .attr('stroke-dasharray', '4');
+        }
+        
+        // Create the bars
+        svg.selectAll('.bar')
+            .data(data)
+            .enter()
+            .append('rect')
+            .attr('class', 'bar')
+            .attr('x', d => x(d.symbol))
+            .attr('width', x.bandwidth())
+            .attr('y', d => valueAccessor(d) < 0 ? y(0) : y(valueAccessor(d)))
+            .attr('height', d => Math.abs(y(valueAccessor(d)) - y(0)))
+            .attr('fill', d => colorScale(valueAccessor(d)));
+        
+        // Add value labels
+        svg.selectAll('.label')
+            .data(data)
+            .enter()
+            .append('text')
+            .attr('class', 'label')
+            .attr('x', d => x(d.symbol) + x.bandwidth() / 2)
+            .attr('y', d => valueAccessor(d) < 0 ? y(valueAccessor(d)) + 15 : y(valueAccessor(d)) - 5)
+            .attr('text-anchor', 'middle')
+            .attr('font-size', '10px')
+            .attr('fill', '#333')
+            .text(d => format(valueAccessor(d)));
+        
+        // Add the x-axis
+        svg.append('g')
+            .attr('transform', `translate(0,${y(0)})`) // Position at y(0) instead of height
+            .call(d3.axisBottom(x))
+            .selectAll('text')
+            .attr('transform', 'rotate(-45)')
+            .style('text-anchor', 'end')
+            .attr('dx', '-.8em')
+            .attr('dy', '.15em');
+        
+        // Add the y-axis
+        svg.append('g')
+            .call(d3.axisLeft(y));
+    }
+    
+    function createTreemap(dataArray) {
+        const container = document.getElementById('treeMapContainer');
+        container.innerHTML = '';
+        
+        if (!dataArray || dataArray.length === 0) {
+            container.innerHTML = '<div class="no-data">No data available</div>';
+            return;
+        }
+        
+        // Group stocks by sector
+        const sectors = {};
+        
+        dataArray.forEach(stock => {
+            // Use the stock's sector, ensure it's a string
+            const sector = (stock.sector && String(stock.sector)) || 'OTHER';
+            
+            if (!sectors[sector]) {
+                sectors[sector] = [];
+            }
+            
+            sectors[sector].push(stock);
+        });
+        
+        // Define sector colors for consistency
+        const sectorColors = {
+            'BANKING': '#4CAF50',
+            'MICROFINANCE': '#2196F3',
+            'FINANCE': '#9C27B0',
+            'DEVELOPMENT_BANK': '#FF9800',
+            'HYDROPOWER': '#03A9F4',
+            'INSURANCE': '#E91E63',
+            'MANUFACTURING': '#795548',
+            'OTHER': '#607D8B'
+        };
+        
+        // Ensure all sectors have a color
+        Object.keys(sectors).forEach(sector => {
+            if (!sectorColors[sector]) {
+                // Generate a consistent color for unknown sectors
+                sectorColors[sector] = '#' + 
+                    ((Math.abs(sector.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % 0xFFFFFF) | 0x666666).toString(16).padStart(6, '0');
+                console.log(`Generated color ${sectorColors[sector]} for sector ${sector}`);
+            }
+        });
+        
+        // Prepare data in hierarchical structure for treemap
+        const treeData = {
+            name: "Stocks",
+            children: []
+        };
+        
+        // Add sectors with their respective stocks
+        Object.entries(sectors).forEach(([sector, stocks]) => {
+            // Only add sectors that have stocks
+            if (stocks.length > 0) {
+                treeData.children.push({
+                    name: sector,
+                    color: sectorColors[sector],
+                    children: stocks.map(stock => ({
+                        name: stock.symbol,
+                        value: stock.volume, // Size based on volume
+                        sector: sector,
+                        originalValue: stock.percentChange,
+                        volume: stock.volume,
+                        open: stock.open,
+                        close: stock.close,
+                        priceChange: stock.priceChange,
+                        rsi: stock.rsi
+                    }))
+                });
+            }
+        });
+        
+        // Set up dimensions
+        const width = container.clientWidth;
+        const height = 500;
+        
+        // Create the SVG container with a border
+        const svg = d3.select('#treeMapContainer')
+            .append('svg')
+            .attr('width', width)
+            .attr('height', height)
+            .style('font-family', 'sans-serif')
+            .style('border-radius', '6px')
+            .style('overflow', 'hidden');
+        
+        // Create the treemap layout
+        const treemap = d3.treemap()
+            .size([width, height])
+            .paddingTop(20)
+            .paddingBottom(10)
+            .paddingRight(5)
+            .paddingLeft(5)
+            .paddingInner(3)
+            .round(true);
+        
+        // Format the data for d3 hierarchy
+        const root = d3.hierarchy(treeData)
+            .sum(d => d.value)
+            .sort((a, b) => b.value - a.value);
+        
+        // Apply the treemap layout
+        treemap(root);
+        
+        // Create a color scale based on percent change
+        const colorScale = d3.scaleSequential()
+            .domain([-10, 10])
+            .interpolator(d => {
+                if (d < 0) {
+                    return d3.interpolateReds(Math.min(1, Math.abs(d) / 10));
+                } else {
+                    return d3.interpolateGreens(Math.min(1, d / 10));
+                }
+            });
+        
+        // Add sector background colors
+        svg.selectAll('.sector-background')
+            .data(root.children)
+            .enter()
+            .append('rect')
+            .attr('class', 'sector-background')
+            .attr('x', d => d.x0)
+            .attr('y', d => d.y0)
+            .attr('width', d => d.x1 - d.x0)
+            .attr('height', d => d.y1 - d.y0)
+            .attr('fill', d => d.data.color ? `${d.data.color}33` : '#f5f5f5') // Add 33 (20% opacity) to hex color
+            .attr('stroke', d => d.data.color || '#ddd')
+            .attr('stroke-width', 1);
+        
+        // Add parent group labels (the categories/sectors)
+        svg.selectAll('.parent')
+            .data(root.children)
+            .enter()
+            .append('text')
+            .attr('class', 'treemap-parent-label')
+            .attr('x', d => d.x0 + 5)
+            .attr('y', d => d.y0 + 15)
+            .text(d => `${d.data.name} (${d.leaves().length})`)
+            .attr('font-size', '14px')
+            .attr('font-weight', 'bold')
+            .attr('fill', '#333');
+            
+        // Create the treemap cells
+        const cell = svg.selectAll('.cell')
+            .data(root.leaves())
+            .enter()
+            .append('g')
+            .attr('class', 'treemap-cell')
+            .attr('transform', d => `translate(${d.x0},${d.y0})`);
+        
+        // Add rectangles for each cell
+        cell.append('rect')
+            .attr('width', d => Math.max(0, d.x1 - d.x0))
+            .attr('height', d => Math.max(0, d.y1 - d.y0))
+            .attr('fill', d => colorScale(d.data.originalValue))
+            .attr('stroke', '#fff')
+            .attr('stroke-width', 1)
+            .attr('class', 'treemap-cell')
+            .on('mouseover', function(event, d) {
+                // Add hover effect
+                d3.select(this)
+                    .attr('stroke', '#333')
+                    .attr('stroke-width', 2);
+                    
+                // Show tooltip with more info
+                tooltip.transition()
+                    .duration(200)
+                    .style('opacity', 0.9);
+                    
+                tooltip.html(`
+                    <div class="tooltip-header">${d.data.name} (${d.data.sector})</div>
+                    <div class="tooltip-row">
+                        <span class="tooltip-label">Change:</span>
+                        <span style="color: ${d.data.originalValue >= 0 ? 'green' : 'red'}">
+                            ${d.data.originalValue.toFixed(2)}%
+                        </span>
+                    </div>
+                    <div class="tooltip-row">
+                        <span class="tooltip-label">Open:</span>
+                        <span>${d.data.open.toFixed(2)}</span>
+                    </div>
+                    <div class="tooltip-row">
+                        <span class="tooltip-label">Close:</span>
+                        <span>${d.data.close.toFixed(2)}</span>
+                    </div>
+                    <div class="tooltip-row">
+                        <span class="tooltip-label">Volume:</span>
+                        <span>${formatNumber(d.data.volume)}</span>
+                    </div>
+                    <div class="tooltip-row">
+                        <span class="tooltip-label">RSI:</span>
+                        <span>${d.data.rsi.toFixed(1)}</span>
+                    </div>
+                `)
+                    .style('left', (event.pageX + 10) + 'px')
+                    .style('top', (event.pageY - 28) + 'px');
+            })
+            .on('mouseout', function() {
+                // Remove hover effect
+                d3.select(this)
+                    .attr('stroke', '#fff')
+                    .attr('stroke-width', 1);
+                    
+                // Hide tooltip
+                tooltip.transition()
+                    .duration(500)
+                    .style('opacity', 0);
+            });
+        
+        // Add stock symbol labels
+        cell.append('text')
+            .attr('class', 'treemap-cell-label')
+            .attr('x', 5)
+            .attr('y', 15)
+            .text(d => d.data.name)
+            .attr('font-size', '12px');
+        
+        // Add percent change labels
+        cell.append('text')
+            .attr('class', 'treemap-value-label')
+            .attr('x', 5)
+            .attr('y', 30)
+            .text(d => `${d.data.originalValue.toFixed(1)}%`)
+            .attr('font-size', '11px');
+        
+        // Add volume info
+        cell.append('text')
+            .attr('class', 'treemap-volume-label')
+            .attr('x', 5)
+            .attr('y', 45)
+            .text(d => `Vol: ${formatNumber(d.data.volume)}`)
+            .attr('font-size', '10px');
+            
+        // Add tooltip for interactivity
+        const tooltip = d3.select('body').append('div')
+            .attr('class', 'treemap-tooltip')
+            .style('opacity', 0);
+    }
+    
+    // Helper functions
+    function showLoading(show) {
+        loadingIndicator.style.display = show ? 'flex' : 'none';
+    }
+    
+    function getWeekNumber(date) {
+        const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
+        const pastDaysOfYear = (date - firstDayOfYear) / 86400000;
+        return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+    }
+    
+    function getSundayToSaturdayDatesForWeek(year, weekNumber) {
+        // Create a date for January 1st of the given year
+        const firstDayOfYear = new Date(year, 0, 1);
+        
+        // Find the first Sunday of the year
+        let firstSundayOfYear = new Date(year, 0, 1);
+        while (firstSundayOfYear.getDay() !== 0) {
+            firstSundayOfYear.setDate(firstSundayOfYear.getDate() + 1);
+        }
+        
+        // Calculate the target Sunday (start of our week)
+        // The first week starts with the first Sunday of the year
+        const targetSunday = new Date(firstSundayOfYear);
+        targetSunday.setDate(firstSundayOfYear.getDate() + (weekNumber - 1) * 7);
+        
+        // Calculate the Saturday at the end of our week
+        const targetSaturday = new Date(targetSunday);
+        targetSaturday.setDate(targetSunday.getDate() + 6);
+        
+        return {
+            startDate: targetSunday,
+            endDate: targetSaturday
+        };
+    }
+    
+    function isDateInRange(date, startDate, endDate) {
+        return date >= startDate && date <= endDate;
+    }
+    
+    function formatNumber(num) {
+        if (num >= 1000000) {
+            return (num / 1000000).toFixed(2) + 'M';
+        } else if (num >= 1000) {
+            return (num / 1000).toFixed(2) + 'K';
+        }
+        return num.toFixed(0);
+    }
+    
+    function isHighVolume(volume, dataArray) {
+        // Find the average volume
+        const avgVolume = dataArray.reduce((sum, stock) => sum + stock.volume, 0) / dataArray.length;
+        // Consider high volume if it's 2x the average
+        return volume > avgVolume * 2;
+    }
+}); 
