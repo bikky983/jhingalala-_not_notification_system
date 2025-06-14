@@ -98,7 +98,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const daysSelector = document.getElementById('daysSelector');
                 if (daysSelector) {
                     const newDays = parseInt(daysSelector.value);
-                    if (newDays >= 3 && newDays <= 30) {
+                    if (newDays >= 1) {
                         analysisDays = newDays;
                         // Save to localStorage
                         localStorage.setItem('analysisDays', String(analysisDays));
