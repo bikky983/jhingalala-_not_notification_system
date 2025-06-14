@@ -517,6 +517,7 @@ async function displayUserStocks(stocks) {
         
         // Create table row
         const row = document.createElement('tr');
+        row.setAttribute('data-symbol', stock.symbol);
         
         // Check if the stock is in the watchlist
         const isWatchlisted = isInWatchlist(stock.symbol);
@@ -1281,12 +1282,21 @@ function migrateWatchlistData() {
 
 // Stock search functionality
 function handleStockSearch() {
-    const searchValue = document.getElementById('stockSearchInput').value.toUpperCase();
+    const searchValue = document.getElementById('stockSearchInput').value.toUpperCase().trim();
     const rows = document.querySelectorAll('#stockTable tbody tr');
     
+    if (!searchValue) {
+        // If search is empty, show all rows
+        rows.forEach(row => {
+            row.style.display = '';
+        });
+        return;
+    }
+    
     rows.forEach(row => {
+        // Get the symbol from the row's data-symbol attribute
         const symbol = row.getAttribute('data-symbol');
-        if (symbol && symbol.includes(searchValue)) {
+        if (symbol && symbol.toUpperCase().includes(searchValue)) {
             row.style.display = '';
         } else {
             row.style.display = 'none';
