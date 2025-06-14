@@ -211,4 +211,39 @@
     height: 1px;
     background-color: #eee;
     margin: 8px 0;
+}
+
+/* Excel actions styling */
+.excel-actions {
+    display: flex;
+    align-items: center;
+    margin-left: 10px;
+}
+
+.excel-actions input[type="file"] {
+    display: none;
+}
+
+#uploadExcelBtn, #downloadExcelBtn {
+    background-color: #4caf50;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    margin: 0 5px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: background-color 0.3s;
+}
+
+#uploadExcelBtn:hover, #downloadExcelBtn:hover {
+    background-color: #388e3c;
+}
+
+#downloadExcelBtn {
+    background-color: #2196f3;
+}
+
+#downloadExcelBtn:hover {
+    background-color: #1976d2;
 } 

@@ -188,13 +188,13 @@ header:hover {
     margin: 0 20px 20px 20px;
 }
 
-.date-filter {
+.date-filter, .days-filter {
     display: flex;
     align-items: center;
     gap: 10px;
 }
 
-.date-filter label {
+.date-filter label, .days-filter label {
     font-weight: 600;
     color: #00796b;
 }
@@ -204,6 +204,15 @@ header:hover {
     border: 1px solid #ddd;
     border-radius: 4px;
     font-size: 14px;
+}
+
+.days-filter input {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    width: 60px;
+    text-align: center;
 }
 
 .date-filter button {
@@ -216,7 +225,17 @@ header:hover {
     transition: background 0.3s;
 }
 
-.date-filter button:hover {
+.days-filter button {
+    padding: 8px 15px;
+    background: #00796b;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+.date-filter button:hover, .days-filter button:hover {
     background: #005a4f;
 }
 
@@ -878,4 +897,4 @@ tbody tr:last-child td {
 .tooltip-row.near-support span:last-child {
     color: #1976D2;
     font-weight: bold;
-} 
+}

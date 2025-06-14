@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let stockHistoricalData = {}; // Store historical data for charts
     let minSupportThreshold = -3; // Default min threshold percentage
     let maxSupportThreshold = 4; // Default max threshold percentage
+    let analysisDays = 7; // Default number of days for analysis
     
     // Initialize event listeners
     initEventListeners();
@@ -40,6 +41,16 @@ document.addEventListener('DOMContentLoaded', function() {
         dashboardStocksOnlyCheckbox.checked = true;
         dashboardStocksOnly = true;
         localStorage.setItem('heatmapDashboardStocksOnly', 'true');
+    }
+    
+    // Load saved analysis days setting
+    const savedDays = localStorage.getItem('analysisDays');
+    if (savedDays) {
+        analysisDays = parseInt(savedDays);
+        const daysSelector = document.getElementById('daysSelector');
+        if (daysSelector) {
+            daysSelector.value = analysisDays;
+        }
     }
     
     // Load data on page load
@@ -79,6 +90,28 @@ document.addEventListener('DOMContentLoaded', function() {
                 updateDateRangeDisplay();
             }
         });
+        
+        // Apply days button functionality
+        const applyDaysBtn = document.getElementById('applyDaysBtn');
+        if (applyDaysBtn) {
+            applyDaysBtn.addEventListener('click', function() {
+                const daysSelector = document.getElementById('daysSelector');
+                if (daysSelector) {
+                    const newDays = parseInt(daysSelector.value);
+                    if (newDays >= 3 && newDays <= 30) {
+                        analysisDays = newDays;
+                        // Save to localStorage
+                        localStorage.setItem('analysisDays', String(analysisDays));
+                        // Update the date range and refresh data
+                        setLastCustomDays();
+                        processWeeklyData();
+                        updateVisualizations();
+                        updateDateRangeDisplay();
+                        console.log(`Analysis days updated to ${analysisDays}`);
+                    }
+                }
+            });
+        }
         
         volumeViewBtn.addEventListener('click', function() {
             setActiveView('volume');
@@ -276,8 +309,8 @@ document.addEventListener('DOMContentLoaded', function() {
             
             stockData = await response.json();
             
-            // Set the date range to the last 7 days including today
-            setLastSevenDays();
+            // Set the date range to the custom number of days
+            setLastCustomDays();
             
             // Initialize the week selector with the current week
             const today = new Date();
@@ -298,10 +331,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    function setLastSevenDays() {
+    function setLastCustomDays() {
         const endDate = new Date(); // Today
         const startDate = new Date();
-        startDate.setDate(endDate.getDate() - 6); // 6 days ago (to make 7 days total including today)
+        startDate.setDate(endDate.getDate() - (analysisDays - 1)); // Days ago (to make total days including today)
         
         // Set start date to beginning of day
         startDate.setHours(0, 0, 0, 0);
@@ -311,7 +344,12 @@ document.addEventListener('DOMContentLoaded', function() {
         
         currentDateRange = { startDate, endDate };
         
-        console.log(`Date range set to: ${startDate.toDateString()} - ${endDate.toDateString()}`);
+        console.log(`Date range set to: ${startDate.toDateString()} - ${endDate.toDateString()} (${analysisDays} days)`);
+    }
+    
+    // For backward compatibility
+    function setLastSevenDays() {
+        setLastCustomDays();
     }
     
     function updateDateRangeDisplay() {
@@ -410,13 +448,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 const totalVolume = calculateTotalVolume(symbol);
                 
                 // Calculate average daily volume
-                const avgDailyVolume = totalVolume / 7; // Using 7 days as the standard period
+                const avgDailyVolume = totalVolume / analysisDays; // Using custom days as the period
                 
                 // Count trading days in the period
                 const tradingDays = records.length;
                 
                 // Calculate missing days (holidays)
-                const totalDaysInPeriod = 7; // Last 7 days
+                const totalDaysInPeriod = analysisDays; // Last X days
                 const holidayDays = totalDaysInPeriod - tradingDays;
                 
                 // Calculate simple RSI based on weekly data
@@ -1589,9 +1627,9 @@ document.addEventListener('DOMContentLoaded', function() {
     function calculateTotalVolume(symbol) {
         if (!stockHistoricalData[symbol]) return 0;
         
-        // Calculate the total volume over the last 7 days
+        // Calculate the total volume over the custom number of days
         return stockHistoricalData[symbol]
-            .slice(-7) // Get last 7 days
+            .slice(-analysisDays) // Get last X days
             .reduce((sum, day) => sum + (day.volume || 0), 0);
     }
     

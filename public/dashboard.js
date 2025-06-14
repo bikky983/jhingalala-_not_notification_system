@@ -1848,17 +1848,14 @@ function updateSelectedStocksCount() {
 
 // Add selected stocks to IPO/Rights page
 function addStocksToIpoRights(type) {
-    if (selectedStocks.length === 0) {
+    if (!selectedStocks || selectedStocks.length === 0) {
         showError('No stocks selected');
         return;
     }
     
-    // Show dialog for issue price
-    const issuePrice = prompt(`Enter ${type.toUpperCase()} issue price for selected stocks:`);
-    if (!issuePrice || isNaN(parseFloat(issuePrice)) || parseFloat(issuePrice) <= 0) {
-        showError('Valid issue price is required');
-        return;
-    }
+    // For rights, we need to prompt for rights percentage
+    let successCount = 0;
+    let errorCount = 0;
     
     // Get rights percentage if needed
     let rightsPercentage = null;
@@ -1868,6 +1865,7 @@ function addStocksToIpoRights(type) {
             showError('Valid rights percentage is required');
             return;
         }
+        
         rightsPercentage = parseFloat(rightsPercentage);
     }
     
@@ -1882,56 +1880,51 @@ function addStocksToIpoRights(type) {
         console.error('Error loading IPO/Rights stocks:', e);
     }
     
-    // Add selected stocks to the list
-    const addedStocks = [];
-    const issuePrice_num = parseFloat(issuePrice);
-    
+    // Add each selected stock
     selectedStocks.forEach(symbol => {
         // Check if stock already exists
         const existingStock = ipoRightsStocks.find(s => s.symbol === symbol);
         if (existingStock) {
             console.warn(`Stock ${symbol} already exists in IPO/Rights list`);
+            errorCount++;
             return;
         }
         
-        // Add stock to the list
+        // Add new stock
         ipoRightsStocks.push({
             symbol,
             type,
-            issuePrice: issuePrice_num,
             rightsPercentage: type === 'rights' ? rightsPercentage : null
         });
         
-        addedStocks.push(symbol);
+        successCount++;
     });
     
-    // Save updated list to localStorage
+    // Save to localStorage
     try {
         localStorage.setItem('ipoRightsStocks', JSON.stringify(ipoRightsStocks));
+        showSuccess(`Added ${successCount} stocks to ${type.toUpperCase()} list`);
+        
+        // Clear selection
+        clearSelectedStocks();
     } catch (e) {
         console.error('Error saving IPO/Rights stocks:', e);
         showError('Failed to save IPO/Rights stocks');
-        return;
+    }
+}
+
+// Clear all selected stocks
+function clearSelectedStocks() {
+    selectedStocks = [];
+    const checkboxes = document.querySelectorAll('.stock-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    
+    const selectAllCheckbox = document.getElementById('selectAllStocks');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = false;
     }
     
-    if (addedStocks.length > 0) {
-        // Clear selection
-        selectedStocks = [];
-        const checkboxes = document.querySelectorAll('.stock-checkbox');
-        checkboxes.forEach(checkbox => {
-            checkbox.checked = false;
-        });
-        
-        const selectAllCheckbox = document.getElementById('selectAllStocks');
-        if (selectAllCheckbox) {
-            selectAllCheckbox.checked = false;
-        }
-        
-        updateSelectedStocksCount();
-        
-        // Show success message
-        showSuccess(`Added ${addedStocks.length} stock${addedStocks.length > 1 ? 's' : ''} to ${type.toUpperCase()}`);
-    } else {
-        showError('No new stocks were added');
-    }
+    updateSelectedStocksCount();
 }

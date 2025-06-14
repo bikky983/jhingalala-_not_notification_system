@@ -12,6 +12,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
     <!-- TradingView Lightweight Charts Library -->
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <!-- SheetJS for Excel/CSV handling -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
 </head>
 <body>
     <div class="dashboard-container">
@@ -31,9 +33,19 @@
                 <button id="showIpoBtn" class="toggle-btn">IPO Only</button>
                 <button id="showRightsBtn" class="toggle-btn">Rights Only</button>
             </div>
+            <div class="days-filter">
+                <label for="daysSelector">Analysis Days:</label>
+                <input type="number" id="daysSelector" min="3" max="30" value="7">
+                <button id="applyDaysBtn">Apply</button>
+            </div>
             <div class="action-buttons">
                 <button id="addIpoBtn" class="action-btn">Add IPO Stock</button>
                 <button id="addRightBtn" class="action-btn">Add Rights Stock</button>
+            </div>
+            <div class="excel-actions">
+                <input type="file" id="uploadExcel" accept=".xlsx, .xls, .csv" />
+                <button id="uploadExcelBtn" class="action-btn">Upload Excel/CSV</button>
+                <button id="downloadExcelBtn" class="action-btn">Download Excel/CSV</button>
             </div>
         </div>
 
@@ -58,10 +70,6 @@
                 <div class="input-group rights-only" style="display: none;">
                     <label for="rightsPercentage">Rights Percentage (%):</label>
                     <input type="number" id="rightsPercentage" placeholder="Enter rights percentage" min="1" step="0.1">
-                </div>
-                <div class="input-group">
-                    <label for="issuePrice">Issue Price:</label>
-                    <input type="number" id="issuePrice" placeholder="Enter issue price" min="1" step="0.01">
                 </div>
                 <button id="saveStockBtn" class="save-stock-btn">Save Stock</button>
             </div>
@@ -99,7 +107,6 @@
                         <tr>
                             <th>Symbol</th>
                             <th>Type</th>
-                            <th>Issue Price</th>
                             <th>Current Price</th>
                             <th>% Change</th>
                             <th>Volume</th>
