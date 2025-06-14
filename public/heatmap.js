@@ -273,8 +273,8 @@ document.addEventListener('DOMContentLoaded', function() {
             
             stockData = await response.json();
             
-            // Set the date range to the last 9 days including today
-            setLastNineDays();
+            // Set the date range to the last 7 days including today
+            setLastSevenDays();
             
             // Initialize the week selector with the current week
             const today = new Date();
@@ -295,10 +295,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    function setLastNineDays() {
+    function setLastSevenDays() {
         const endDate = new Date(); // Today
         const startDate = new Date();
-        startDate.setDate(endDate.getDate() - 8); // 8 days ago (to make 9 days total including today)
+        startDate.setDate(endDate.getDate() - 6); // 6 days ago (to make 7 days total including today)
         
         // Set start date to beginning of day
         startDate.setHours(0, 0, 0, 0);
@@ -394,25 +394,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Calculate weekly high/low
                 let weeklyHigh = -Infinity;
                 let weeklyLow = Infinity;
-                let totalVolume = 0;
                 
                 records.forEach(record => {
                     weeklyHigh = Math.max(weeklyHigh, record.high);
                     weeklyLow = Math.min(weeklyLow, record.low);
-                    totalVolume += record.volume;
                 });
                 
                 // Calculate volatility (high-low range as percentage of open)
                 const volatility = ((weeklyHigh - weeklyLow) / weeklyOpen) * 100;
                 
+                // Get total volume using the same method as IPO rights page
+                const totalVolume = calculateTotalVolume(symbol);
+                
                 // Calculate average daily volume
-                const avgDailyVolume = totalVolume / records.length;
+                const avgDailyVolume = totalVolume / 7; // Using 7 days as the standard period
                 
                 // Count trading days in the period
                 const tradingDays = records.length;
                 
                 // Calculate missing days (holidays)
-                const totalDaysInPeriod = 9; // Last 9 days
+                const totalDaysInPeriod = 7; // Last 7 days
                 const holidayDays = totalDaysInPeriod - tradingDays;
                 
                 // Calculate simple RSI based on weekly data
@@ -1567,14 +1568,26 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Add the data point
             stockHistoricalData[symbol].push({
+                time: item.time,
                 open: parseFloat(item.open),
                 high: parseFloat(item.high),
                 low: parseFloat(item.low),
-                close: parseFloat(item.close)
+                close: parseFloat(item.close),
+                volume: parseFloat(item.volume || 0)
             });
         });
         
         console.log("Processed data for symbols:", Object.keys(stockHistoricalData));
+    }
+    
+    // Calculate total volume for a given stock
+    function calculateTotalVolume(symbol) {
+        if (!stockHistoricalData[symbol]) return 0;
+        
+        // Calculate the total volume over the last 7 days
+        return stockHistoricalData[symbol]
+            .slice(-7) // Get last 7 days
+            .reduce((sum, day) => sum + (day.volume || 0), 0);
     }
     
     // Downsample data if too many points
