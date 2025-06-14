@@ -44,8 +44,11 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Load data on page load
     loadDashboardData();
-    loadData();
-    fetchHistoricalData(); // Added to load historical data for charts
+    
+    // First load historical data, then load and process the main data
+    fetchHistoricalData().then(() => {
+        loadData();
+    });
     
     // Get Stocks button functionality
     if (getStocksBtn) {
@@ -1531,9 +1534,11 @@ document.addEventListener('DOMContentLoaded', function() {
             processHistoricalData(data);
             
             showLoading(false);
+            return true; // Return success to allow proper promise chaining
         } catch (error) {
             console.error('Error fetching historical data:', error);
             showLoading(false);
+            return false; // Return failure
         }
     }
     
