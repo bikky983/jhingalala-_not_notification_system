@@ -99,11 +99,33 @@
 
 /* Color coding for IPO and Rights stocks */
 .color-box.ipo {
-    background-color: #2196F3; /* Blue for IPO */
+    background-color: #90CAF9; /* Light blue for IPO */
 }
 
 .color-box.rights {
-    background-color: #9C27B0; /* Purple for Rights */
+    background-color: #CE93D8; /* Light purple for Rights */
+}
+
+/* Colors for price movement */
+.price-up {
+    background-color: #C8E6C9; /* Light green for price increase */
+}
+
+.price-down {
+    background-color: #FFCDD2; /* Light red for price decrease */
+}
+
+/* Support level colors (same as heatmap) */
+.support1-color {
+    background-color: #90CAF9; /* Light blue for Support 1 */
+}
+
+.support2-color {
+    background-color: #FFCC80; /* Light orange for Support 2 */
+}
+
+.support3-color {
+    background-color: #BCAAA4; /* Light brown for Support 3 */
 }
 
 /* Table styling */
@@ -157,4 +179,36 @@
 .negative-change {
     color: #F44336;
     font-weight: 500;
+}
+
+/* Tooltip styles */
+.treemap-tooltip {
+    font-family: Arial, sans-serif;
+    padding: 10px;
+}
+
+.tooltip-header {
+    font-weight: bold;
+    font-size: 14px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 5px;
+}
+
+.tooltip-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+    font-size: 12px;
+}
+
+.tooltip-label {
+    font-weight: 500;
+    margin-right: 10px;
+}
+
+.tooltip-divider {
+    height: 1px;
+    background-color: #eee;
+    margin: 8px 0;
 } 

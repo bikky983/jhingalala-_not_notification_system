@@ -556,8 +556,9 @@ async function displayUserStocks(stocks) {
                 <button onclick="editStock('${stock.symbol}')" class="action-btn edit-btn">Edit</button>
                 <button onclick="deleteStock('${stock.symbol}')" class="action-btn delete-btn">Delete</button>
             </td>
-            <td>
-                <button onclick="showFullScreenChart('${stock.symbol}')" class="action-btn chart-btn">Show Chart</button>
+            <td class="chart-cell">
+                <div id="chart-container-${stock.symbol}" class="chart-container-small"></div>
+                <button onclick="showFullScreenChart('${stock.symbol}')" class="action-btn chart-btn">Chart</button>
             </td>
         `;
         
