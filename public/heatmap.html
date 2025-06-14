@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEPSE Stock Heatmap</title>
+    <link rel="stylesheet" href="heatmap.css">
+    <!-- D3.js for visualizations -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <!-- Date manipulation library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+    <!-- TradingView Lightweight Charts Library -->
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body>
+    <div class="dashboard-container">
+        <header>
+            <h1>NEPSE Weekly Stock Heatmap</h1>
+            <div class="nav-container">
+                <button id="getStocksBtn" class="get-stocks-btn">GET STOCKS</button>
+                <div class="nav-links">
+                    <!-- Navigation links will be populated by common-nav.js -->
+                </div>
+            </div>
+        </header>
+
+        <div class="filters-container">
+            <div class="date-filter">
+                <label for="weekSelector">Custom Date Range:</label>
+                <input type="week" id="weekSelector">
+                <button id="applyFilterBtn">Apply Custom Week</button>
+            </div>
+            <div class="filter-options">
+                <label class="checkbox-container">
+                    Dashboard Stocks Only
+                    <input type="checkbox" id="dashboardStocksOnlyCheckbox">
+                    <span class="checkmark"></span>
+                </label>
+            </div>
+            <div class="view-toggles">
+                <button id="volumeViewBtn" class="toggle-btn active">Volume</button>
+                <button id="changeViewBtn" class="toggle-btn">Price Change</button>
+                <button id="percentViewBtn" class="toggle-btn">% Change</button>
+            </div>
+        </div>
+        
+        <!-- Support Level Controls -->
+        <div class="support-controls">
+            <h3>Support Level Settings</h3>
+            <div class="support-threshold-control">
+                <label for="supportThreshold">Support Proximity Threshold (%): <span id="thresholdValue">3</span>%</label>
+                <input type="range" id="supportThreshold" min="0.5" max="10" step="0.5" value="3">
+                <div class="threshold-range">
+                    <span>0.5%</span>
+                    <span>10%</span>
+                </div>
+            </div>
+            <div class="color-code-info">
+                <h4>Color Coding:</h4>
+                <div class="color-legend">
+                    <div class="color-item">
+                        <div class="color-box support1"></div>
+                        <span>Support Level 1 (Light Blue)</span>
+                    </div>
+                    <div class="color-item">
+                        <div class="color-box support2"></div>
+                        <span>Support Level 2 (Light Orange)</span>
+                    </div>
+                    <div class="color-item">
+                        <div class="color-box support3"></div>
+                        <span>Support Level 3 (Light Brown)</span>
+                    </div>
+                    <div class="color-item">
+                        <div class="color-box positive"></div>
+                        <span>Positive Change (Green)</span>
+                    </div>
+                    <div class="color-item">
+                        <div class="color-box negative"></div>
+                        <span>Negative Change (Red)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tree Visualization Section -->
+        <div class="tree-visualization-container">
+            <h2>Weekly Stock Performance Treemap</h2>
+            <div class="tree-description">
+                <p>This treemap groups stocks by sectors and performance. Size represents volume, and color indicates direction (green for gains, red for losses).</p>
+                <p><span class="tree-note">Note:</span> The analysis covers the last 9 days. Sector information is loaded from your saved folders.</p>
+            </div>
+            <div id="treeMapContainer" class="treemap-chart"></div>
+        </div>
+
+        <div class="heatmap-container">
+            <div class="loading-spinner" id="loadingIndicator" style="display: none;">
+                <div class="spinner"></div>
+            </div>
+            
+            <div class="heatmap-sections">
+                <div class="heatmap-section">
+                    <h2>Top Gainers</h2>
+                    <div id="gainersHeatmap" class="heatmap-chart"></div>
+                </div>
+                
+                <div class="heatmap-section">
+                    <h2>Top Losers</h2>
+                    <div id="losersHeatmap" class="heatmap-chart"></div>
+                </div>
+                
+                <div class="heatmap-section">
+                    <h2>Highest Volume</h2>
+                    <div id="volumeHeatmap" class="heatmap-chart"></div>
+                </div>
+                
+                <div class="heatmap-section">
+                    <h2>Momentum Leaders</h2>
+                    <div id="momentumHeatmap" class="heatmap-chart"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="detailed-view">
+            <h2>Detailed Weekly Performance</h2>
+            <div class="stock-details-container">
+                <table id="stockPerformanceTable">
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Opening Price</th>
+                            <th>Closing Price</th>
+                            <th>% Change</th>
+                            <th>Volume</th>
+                            <th>High</th>
+                            <th>Low</th>
+                            <th>Volatility</th>
+                            <th>RSI</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Stock details will be populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart Popup for fullscreen view -->
+    <div class="chart-popup">
+        <div class="chart-popup-content">
+            <div class="chart-popup-header">
+                <h3 id="popupChartTitle">Stock Chart</h3>
+                <button class="chart-popup-close">&times;</button>
+            </div>
+            <div class="chart-popup-body">
+                <div id="popupChartContainer"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="api-service.js"></script>
+    <script src="common-nav.js"></script>
+    <script src="heatmap.js"></script>
+</body>
+</html> 
