@@ -1,7 +1,133 @@
 {
-  "lastUpdated": null,
-  "institutionalStocks": {},
-  "trendlineStocks": {},
-  "rsiSupportStocks": {},
-  "heatmapStocks": {}
-} 
+  "lastUpdated": "2025-06-16T13:10:04.348Z",
+  "institutionalStocks": {
+    "BANK": {
+      "score": 0.82,
+      "timestamp": "2025-06-16T13:10:04.214Z"
+    },
+    "TECH": {
+      "score": 0.75,
+      "timestamp": "2025-06-16T13:10:04.214Z"
+    },
+    "FOOD": {
+      "score": 0.67,
+      "timestamp": "2025-06-16T13:10:04.214Z"
+    },
+    "HOTEL": {
+      "score": 0.62,
+      "timestamp": "2025-06-16T13:10:04.214Z"
+    },
+    "HYDRO": {
+      "score": 0.58,
+      "timestamp": "2025-06-16T13:10:04.214Z"
+    },
+    "INSUR": {
+      "score": 0.53,
+      "timestamp": "2025-06-16T13:10:04.214Z"
+    },
+    "MICRO": {
+      "score": 0.48,
+      "timestamp": "2025-06-16T13:10:04.214Z"
+    },
+    "MANU": {
+      "score": 0.42,
+      "timestamp": "2025-06-16T13:10:04.214Z"
+    }
+  },
+  "trendlineStocks": {
+    "BANK": {
+      "trend": "Uptrend",
+      "firstDetected": "2025-06-16T13:10:04.291Z",
+      "lastUpdated": "2025-06-16T13:10:04.291Z"
+    },
+    "TECH": {
+      "trend": "Uptrend",
+      "firstDetected": "2025-06-16T13:10:04.291Z",
+      "lastUpdated": "2025-06-16T13:10:04.291Z"
+    },
+    "HYDRO": {
+      "trend": "Uptrend",
+      "firstDetected": "2025-06-16T13:10:04.291Z",
+      "lastUpdated": "2025-06-16T13:10:04.291Z"
+    }
+  },
+  "rsiSupportStocks": {
+    "TECH1": {
+      "rsi": 28,
+      "distanceFromSupport": 3,
+      "timestamp": "2025-06-16T13:10:04.348Z"
+    },
+    "FOOD1": {
+      "rsi": 33,
+      "distanceFromSupport": 4.2,
+      "timestamp": "2025-06-16T13:10:04.348Z"
+    },
+    "BANK1": {
+      "rsi": 35,
+      "distanceFromSupport": 3.4,
+      "timestamp": "2025-06-16T13:10:04.348Z"
+    },
+    "MICRO1": {
+      "rsi": 38,
+      "distanceFromSupport": 4.7,
+      "timestamp": "2025-06-16T13:10:04.348Z"
+    }
+  },
+  "heatmapStocks": {
+    "BANK3": {
+      "volume": 320000,
+      "lastPrice": 250,
+      "timestamp": "2025-06-16T13:10:04.327Z"
+    },
+    "BANK1": {
+      "volume": 250000,
+      "lastPrice": 300,
+      "timestamp": "2025-06-16T13:10:04.327Z"
+    },
+    "BANK2": {
+      "volume": 180000,
+      "lastPrice": 420,
+      "timestamp": "2025-06-16T13:10:04.327Z"
+    },
+    "HYDRO1": {
+      "volume": 450000,
+      "lastPrice": 150,
+      "timestamp": "2025-06-16T13:10:04.327Z"
+    },
+    "HYDRO2": {
+      "volume": 380000,
+      "lastPrice": 200,
+      "timestamp": "2025-06-16T13:10:04.327Z"
+    },
+    "HYDRO3": {
+      "volume": 280000,
+      "lastPrice": 120,
+      "timestamp": "2025-06-16T13:10:04.327Z"
+    },
+    "MICRO3": {
+      "volume": 220000,
+      "lastPrice": 380,
+      "timestamp": "2025-06-16T13:10:04.327Z"
+    },
+    "MICRO1": {
+      "volume": 180000,
+      "lastPrice": 450,
+      "timestamp": "2025-06-16T13:10:04.327Z"
+    },
+    "MICRO2": {
+      "volume": 150000,
+      "lastPrice": 520,
+      "timestamp": "2025-06-16T13:10:04.327Z"
+    },
+    "INSUR2": {
+      "volume": 190000,
+      "lastPrice": 480,
+      "timestamp": "2025-06-16T13:10:04.327Z"
+    },
+    "INSUR1": {
+      "volume": 120000,
+      "lastPrice": 550,
+      "timestamp": "2025-06-16T13:10:04.327Z"
+    }
+  }
+}
