@@ -1,7 +1,7 @@
 [build]
   publish = "public"
   functions = "netlify/functions"
-  command = "npm run netlify-build"
+  command = "npm run build"
 
 [functions]
   node_bundler = "esbuild"
@@ -22,18 +22,6 @@
 [[redirects]]
   from = "/api/prices"
   to = "/.netlify/functions/getPrices"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/api/meroshare/*"
-  to = "/.netlify/functions/meroShareProxy"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/api/ipo/*"
-  to = "/.netlify/functions/ipoManager"
   status = 200
   force = true
 

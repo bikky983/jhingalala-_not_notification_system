@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>NEPSE Stock Alerts</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            border-radius: 5px 5px 0 0;
+        }
+        .footer {
+            background-color: #ecf0f1;
+            padding: 10px;
+            text-align: center;
+            font-size: 12px;
+            border-radius: 0 0 5px 5px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .section-title {
+            margin-top: 0;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+            color: #2c3e50;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        th, td {
+            padding: 8px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+        th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        .up {
+            color: green;
+        }
+        .down {
+            color: red;
+        }
+        .highlight {
+            background-color: #fff3cd;
+        }
+        .new-tag {
+            background-color: #28a745;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>NEPSE Stock Alerts</h1>
+        <p>Date: {{formatDate timestamp}}</p>
+    </div>
+    
+    {{#if institutionalActivity}}
+    <div class="section">
+        <h2 class="section-title">Institutional Activity Alerts</h2>
+        
+        {{#each institutionalActivity.data as |stocks threshold|}}
+        {{#if stocks.length}}
+        <h3>Score Threshold: {{threshold}}</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Symbol</th>
+                    <th>Score</th>
+                    <th>Change</th>
+                    <th>Volume</th>
+                    <th>Activity</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#each stocks}}
+                <tr>
+                    <td>{{symbol}}</td>
+                    <td>{{score}}</td>
+                    <td class="{{#if (gt percentChange 0)}}up{{else}}down{{/if}}">
+                        {{formatPercent percentChange}}
+                    </td>
+                    <td>{{formatLargeNumber volume}}</td>
+                    <td>{{activity}}</td>
+                </tr>
+                {{/each}}
+            </tbody>
+        </table>
+        {{/if}}
+        {{/each}}
+    </div>
+    {{/if}}
+    
+    {{#if trendlineScanner}}
+    <div class="section">
+        <h2 class="section-title">Uptrend Stocks</h2>
+        
+        {{#if trendlineScanner.data.new.length}}
+        <h3>New Uptrend Stocks</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Symbol</th>
+                    <th>Change</th>
+                    <th>Trend Strength</th>
+                    <th>Price</th>
+                    <th>Support</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#each trendlineScanner.data.new}}
+                <tr class="highlight">
+                    <td>{{symbol}} <span class="new-tag">NEW</span></td>
+                    <td class="up">{{formatPercent percentChange}}</td>
+                    <td>{{trendStrength}}</td>
+                    <td>{{lastPrice}}</td>
+                    <td>{{support}}</td>
+                </tr>
+                {{/each}}
+            </tbody>
+        </table>
+        {{/if}}
+        
+        {{#if trendlineScanner.data.existing.length}}
+        <h3>Continuing Uptrend Stocks</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Symbol</th>
+                    <th>Change</th>
+                    <th>Days in Uptrend</th>
+                    <th>Price</th>
+                    <th>Support</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#each trendlineScanner.data.existing}}
+                <tr>
+                    <td>{{symbol}}</td>
+                    <td class="up">{{formatPercent percentChange}}</td>
+                    <td>{{daysSinceDetected}}</td>
+                    <td>{{lastPrice}}</td>
+                    <td>{{support}}</td>
+                </tr>
+                {{/each}}
+            </tbody>
+        </table>
+        {{/if}}
+    </div>
+    {{/if}}
+    
+    {{#if weeklyHeatmap}}
+    <div class="section">
+        <h2 class="section-title">Top Volume Stocks by Sector</h2>
+        
+        {{#each weeklyHeatmap.data.sectors as |stocks sector|}}
+        <h3>{{sector}}</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Symbol</th>
+                    <th>Price</th>
+                    <th>Change</th>
+                    <th>Volume</th>
+                    <th>Distance from Support</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#each stocks}}
+                <tr>
+                    <td>{{symbol}}</td>
+                    <td>{{lastPrice}}</td>
+                    <td class="{{#if (gt percentChange 0)}}up{{else}}down{{/if}}">
+                        {{formatPercent percentChange}}
+                    </td>
+                    <td>{{formatLargeNumber volume}}</td>
+                    <td>{{distanceFromSupport}}%</td>
+                </tr>
+                {{/each}}
+            </tbody>
+        </table>
+        {{/each}}
+    </div>
+    {{/if}}
+    
+    {{#if rsiSupport}}
+    <div class="section">
+        <h2 class="section-title">RSI Support Stocks</h2>
+        <p>Showing stocks with RSI ≤ {{rsiSupport.maxRSI}} and near support levels</p>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Symbol</th>
+                    <th>RSI</th>
+                    <th>Price</th>
+                    <th>Support</th>
+                    <th>Distance</th>
+                    <th>Change</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#each rsiSupport.data.stocks}}
+                <tr>
+                    <td>{{symbol}}</td>
+                    <td>{{rsi}}</td>
+                    <td>{{lastPrice}}</td>
+                    <td>{{supportLevel}}</td>
+                    <td>{{distanceFromSupport}}%</td>
+                    <td class="{{#if (gt percentChange 0)}}up{{else}}down{{/if}}">
+                        {{formatPercent percentChange}}
+                    </td>
+                </tr>
+                {{/each}}
+            </tbody>
+        </table>
+    </div>
+    {{/if}}
+    
+    <div class="footer">
+        <p>This is an automated notification from your NEPSE Stock Screener.</p>
+        <p>© {{currentYear}} Stock Screener</p>
+    </div>
+</body>
+</html> 

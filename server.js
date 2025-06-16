@@ -1,15 +1,14 @@
 const express = require('express');
 const axios = require('axios');
 const cheerio = require('cheerio');
-const cors = require('cors');
 const stockScraper = require('./server/stockScraper');
+require('dotenv').config(); // Add dotenv configuration
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
 // Middleware
 app.use(express.json());
-app.use(cors()); // Enable CORS for all routes
 app.use(express.static('public'));
 
 // API Routes
