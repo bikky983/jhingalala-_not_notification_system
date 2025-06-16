@@ -3,10 +3,9 @@
  */
 const fs = require('fs').promises;
 const path = require('path');
-const axios = require('axios');
-const cheerio = require('cheerio');
 const config = require('../config/config');
 const stateManager = require('../utils/stateManager');
+const stockFilter = require('../utils/stockFilter');
 
 class WeeklyHeatmap {
     constructor() {
@@ -15,55 +14,121 @@ class WeeklyHeatmap {
     }
 
     /**
-     * Fetch heatmap data from the webpage
-     * @returns {Promise<Object>} - Heatmap data by sector
+     * Fetch heatmap data from local JSON file
+     * @returns {Promise<Object>} - Heatmap data by sector and stock
      */
     async fetchHeatmapData() {
         try {
-            // In production, this would be a real API/scraping endpoint
-            // For demo purposes, we'll simulate the data structure
-            // This should be replaced with actual scraping logic
+            // Initialize stock filter
+            await stockFilter.initialize();
             
-            const response = await axios.get('https://yourwebsite.com/weekly-heatmap', {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            // Path to the organized NEPSE data file
+            const dataPath = path.join(process.cwd(), 'public', 'organized_nepse_data.json');
+            
+            // Read the data file
+            const rawData = await fs.readFile(dataPath, 'utf-8');
+            const stockData = JSON.parse(rawData);
+            
+            // Group data by symbol
+            const symbolData = {};
+            stockData.forEach(entry => {
+                // Only include allowed stocks
+                if (stockFilter.isAllowedStock(entry.symbol)) {
+                    if (!symbolData[entry.symbol]) {
+                        symbolData[entry.symbol] = [];
+                    }
+                    symbolData[entry.symbol].push(entry);
                 }
             });
             
-            const $ = cheerio.load(response.data);
-            const sectorsData = {};
+            // Define sectors (in real world, this would come from a more complete data source)
+            const sectorMapping = {
+                'BANK': 'Banking',
+                'FINANCE': 'Finance',
+                'HYDRO': 'Hydropower',
+                'LIFE': 'Insurance',
+                'MICRO': 'Microfinance',
+                'HOTEL': 'Tourism',
+                'DEV': 'Development Bank'
+                // Add more mappings as needed
+            };
             
-            // Scrape data from the heatmap tables (one per sector)
-            $('.sector-table').each((i, element) => {
-                const sectorName = $(element).attr('data-sector');
-                sectorsData[sectorName] = [];
+            // Assign sectors based on symbol patterns
+            const stocksBySector = {};
+            
+            for (const symbol in symbolData) {
+                // Sort data by time in ascending order
+                const data = symbolData[symbol].sort((a, b) => 
+                    new Date(a.time.replace(/_/g, '-')) - new Date(b.time.replace(/_/g, '-'))
+                );
                 
-                $(element).find('tbody tr').each((j, row) => {
-                    try {
-                        const tds = $(row).find('td');
-                        const stock = {
-                            symbol: $(tds[0]).text().trim(),
-                            name: $(tds[1]).text().trim(),
-                            lastPrice: parseFloat($(tds[2]).text().replace(/,/g, '')),
-                            percentChange: parseFloat($(tds[3]).text()) / 100,
-                            volume: parseInt($(tds[4]).text().replace(/,/g, '')),
-                            supportLevel: parseFloat($(tds[5]).text().replace(/,/g, '')),
-                            distanceFromSupport: parseFloat($(tds[6]).text()),
-                            sector: sectorName
-                        };
-                        
-                        sectorsData[sectorName].push(stock);
-                    } catch (err) {
-                        console.error(`Error parsing row in sector ${sectorName}:`, err);
+                // Need at least 5 days of data
+                if (data.length < 5) continue;
+                
+                // Get the most recent 5 days of data
+                const recentData = data.slice(-5);
+                
+                // Calculate average volume
+                let totalVolume = 0;
+                let totalChange = 0;
+                
+                recentData.forEach(day => {
+                    if (day.volume) {
+                        totalVolume += day.volume;
                     }
                 });
-            });
+                
+                // Calculate percent change over the 5-day period
+                const startPrice = recentData[0].close;
+                const endPrice = recentData[recentData.length - 1].close;
+                const percentChange = ((endPrice - startPrice) / startPrice) * 100;
+                
+                // Determine sector from symbol
+                let sector = 'Other';
+                for (const key in sectorMapping) {
+                    if (symbol.includes(key)) {
+                        sector = sectorMapping[key];
+                        break;
+                    }
+                }
+                
+                // Only add if volume meets minimum requirement
+                const avgVolume = totalVolume / recentData.length;
+                if (avgVolume >= this.minVolume) {
+                    if (!stocksBySector[sector]) {
+                        stocksBySector[sector] = [];
+                    }
+                    
+                    stocksBySector[sector].push({
+                        symbol: symbol,
+                        name: symbol,  // Using symbol as name
+                        close: recentData[recentData.length - 1].close,
+                        percentChange: percentChange,
+                        volume: avgVolume,
+                        sector: sector
+                    });
+                }
+            }
             
-            return sectorsData;
+            // Sort each sector's stocks by volume and take top N
+            const sectorsData = {};
+            for (const sector in stocksBySector) {
+                // Sort by volume in descending order
+                const sortedStocks = stocksBySector[sector].sort((a, b) => b.volume - a.volume);
+                
+                // Take top N by volume
+                sectorsData[sector] = sortedStocks.slice(0, this.topNbyVolume);
+            }
+            
+            // Only return real data if we have at least one sector with stocks
+            if (Object.keys(sectorsData).length > 0) {
+                return sectorsData;
+            } else {
+                throw new Error('No heatmap data found in processed data');
+            }
         } catch (error) {
-            console.error('Error fetching heatmap data:', error);
-            // Return sample data for testing
-            return this.getSampleData();
+            console.error('Error processing heatmap data:', error);
+            throw error;
         }
     }
 
@@ -74,52 +139,26 @@ class WeeklyHeatmap {
     getSampleData() {
         return {
             'Banking': [
-                { symbol: 'BANK1', name: 'Bank One', lastPrice: 300, percentChange: 0.02, volume: 250000, supportLevel: 285, distanceFromSupport: 5.3, sector: 'Banking' },
-                { symbol: 'BANK2', name: 'Bank Two', lastPrice: 420, percentChange: 0.015, volume: 180000, supportLevel: 408, distanceFromSupport: 2.9, sector: 'Banking' },
-                { symbol: 'BANK3', name: 'Bank Three', lastPrice: 250, percentChange: 0.025, volume: 320000, supportLevel: 240, distanceFromSupport: 4.2, sector: 'Banking' },
-                { symbol: 'BANK4', name: 'Bank Four', lastPrice: 380, percentChange: -0.01, volume: 150000, supportLevel: 375, distanceFromSupport: 1.3, sector: 'Banking' }
+                { symbol: 'BANK1', name: 'Bank 1', close: 341, percentChange: 2.2, volume: 245000, sector: 'Banking' },
+                { symbol: 'BANK2', name: 'Bank 2', close: 280, percentChange: 1.5, volume: 210000, sector: 'Banking' },
+                { symbol: 'BANK3', name: 'Bank 3', close: 195, percentChange: -0.8, volume: 185000, sector: 'Banking' }
             ],
             'Hydropower': [
-                { symbol: 'HYDRO1', name: 'Hydro One', lastPrice: 150, percentChange: 0.035, volume: 450000, supportLevel: 140, distanceFromSupport: 7.1, sector: 'Hydropower' },
-                { symbol: 'HYDRO2', name: 'Hydro Two', lastPrice: 200, percentChange: 0.022, volume: 380000, supportLevel: 190, distanceFromSupport: 5.3, sector: 'Hydropower' },
-                { symbol: 'HYDRO3', name: 'Hydro Three', lastPrice: 120, percentChange: 0.018, volume: 280000, supportLevel: 110, distanceFromSupport: 9.1, sector: 'Hydropower' },
-                { symbol: 'HYDRO4', name: 'Hydro Four', lastPrice: 180, percentChange: -0.008, volume: 190000, supportLevel: 175, distanceFromSupport: 2.9, sector: 'Hydropower' }
-            ],
-            'Microfinance': [
-                { symbol: 'MICRO1', name: 'Micro One', lastPrice: 450, percentChange: 0.028, volume: 180000, supportLevel: 430, distanceFromSupport: 4.7, sector: 'Microfinance' },
-                { symbol: 'MICRO2', name: 'Micro Two', lastPrice: 520, percentChange: 0.015, volume: 150000, supportLevel: 500, distanceFromSupport: 4.0, sector: 'Microfinance' },
-                { symbol: 'MICRO3', name: 'Micro Three', lastPrice: 380, percentChange: 0.022, volume: 220000, supportLevel: 365, distanceFromSupport: 4.1, sector: 'Microfinance' }
+                { symbol: 'HYDRO1', name: 'Hydro 1', close: 127, percentChange: 3.5, volume: 325000, sector: 'Hydropower' },
+                { symbol: 'HYDRO2', name: 'Hydro 2', close: 98, percentChange: 2.1, volume: 290000, sector: 'Hydropower' },
+                { symbol: 'HYDRO3', name: 'Hydro 3', close: 115, percentChange: 1.8, volume: 245000, sector: 'Hydropower' }
             ],
             'Insurance': [
-                { symbol: 'INSUR1', name: 'Insurance One', lastPrice: 550, percentChange: 0.012, volume: 120000, supportLevel: 535, distanceFromSupport: 2.8, sector: 'Insurance' },
-                { symbol: 'INSUR2', name: 'Insurance Two', lastPrice: 480, percentChange: 0.018, volume: 190000, supportLevel: 465, distanceFromSupport: 3.2, sector: 'Insurance' }
+                { symbol: 'INSUR1', name: 'Insurance 1', close: 560, percentChange: 1.2, volume: 95000, sector: 'Insurance' },
+                { symbol: 'INSUR2', name: 'Insurance 2', close: 715, percentChange: -0.5, volume: 85000, sector: 'Insurance' },
+                { symbol: 'INSUR3', name: 'Insurance 3', close: 625, percentChange: 0.7, volume: 75000, sector: 'Insurance' }
+            ],
+            'Microfinance': [
+                { symbol: 'MICRO1', name: 'Micro 1', close: 428, percentChange: 2.8, volume: 125000, sector: 'Microfinance' },
+                { symbol: 'MICRO2', name: 'Micro 2', close: 519, percentChange: 1.9, volume: 118000, sector: 'Microfinance' },
+                { symbol: 'MICRO3', name: 'Micro 3', close: 390, percentChange: 0.9, volume: 105000, sector: 'Microfinance' }
             ]
         };
-    }
-
-    /**
-     * Get top N stocks by volume for each sector
-     * @param {Object} sectorsData - Heatmap data by sector
-     * @returns {Object} - Top N stocks by volume for each sector
-     */
-    getTopVolumeStocks(sectorsData) {
-        const result = {};
-        
-        // Process each sector
-        Object.keys(sectorsData).forEach(sector => {
-            const stocks = sectorsData[sector];
-            
-            // Filter by minimum volume
-            const filteredStocks = stocks.filter(stock => stock.volume >= this.minVolume);
-            
-            // Sort by volume (descending)
-            const sortedStocks = filteredStocks.sort((a, b) => b.volume - a.volume);
-            
-            // Take top N
-            result[sector] = sortedStocks.slice(0, this.topNbyVolume);
-        });
-        
-        return result;
     }
 
     /**
@@ -131,36 +170,9 @@ class WeeklyHeatmap {
             // Fetch the data
             const sectorsData = await this.fetchHeatmapData();
             
-            // Get top volume stocks for each sector
-            const topVolumeStocks = this.getTopVolumeStocks(sectorsData);
-            
-            // Calculate total stocks for summary
-            let totalStocks = 0;
-            Object.values(topVolumeStocks).forEach(stocks => {
-                totalStocks += stocks.length;
-            });
-            
-            // Update state
-            await stateManager.updateHeatmapStocks(
-                Object.values(topVolumeStocks).flat().reduce((acc, stock) => {
-                    acc[stock.symbol] = {
-                        volume: stock.volume,
-                        lastPrice: stock.lastPrice,
-                        timestamp: new Date().toISOString()
-                    };
-                    return acc;
-                }, {})
-            );
-            
             return {
                 type: 'weeklyHeatmap',
-                data: {
-                    sectors: topVolumeStocks,
-                    summary: {
-                        sectorCount: Object.keys(topVolumeStocks).length,
-                        stockCount: totalStocks
-                    }
-                },
+                data: { sectors: sectorsData },
                 timestamp: new Date().toISOString()
             };
         } catch (error) {

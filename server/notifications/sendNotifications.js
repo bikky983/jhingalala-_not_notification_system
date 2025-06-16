@@ -56,28 +56,9 @@ async function processAndSendNotifications() {
                 return await module.process();
             } catch (error) {
                 console.error(`Error processing ${name}:`, error);
-                console.log(`Using sample data for ${name} due to error`);
-                // For modules with getSampleData method, use that as fallback
-                if (typeof module.getSampleData === 'function') {
-                    const sampleData = module.getSampleData();
-                    return {
-                        type: name,
-                        data: name === 'institutionalActivity' ? 
-                              { '0.5': sampleData.filter(s => s.score >= 0.5 && s.score < 0.65),
-                                '0.65': sampleData.filter(s => s.score >= 0.65 && s.score < 0.8),
-                                '0.8': sampleData.filter(s => s.score >= 0.8) } :
-                              name === 'trendlineScanner' ?
-                              { new: sampleData.filter(s => s.trend === 'Uptrend').slice(0, 2),
-                                existing: sampleData.filter(s => s.trend === 'Uptrend').slice(2) } :
-                              name === 'weeklyHeatmap' ?
-                              { sectors: Object.values(sampleData).reduce((acc, stocks) => {
-                                  const sector = stocks[0]?.sector || 'Unknown';
-                                  acc[sector] = stocks.slice(0, 3);
-                                  return acc;
-                                }, {}) } :
-                              { stocks: sampleData }
-                    };
-                }
+                
+                // Log the error and skip this notification
+                console.log(`Skipping ${name} notifications due to error`);
                 return null;
             }
         };

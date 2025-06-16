@@ -3,10 +3,9 @@
  */
 const fs = require('fs').promises;
 const path = require('path');
-const axios = require('axios');
-const cheerio = require('cheerio');
 const config = require('../config/config');
 const stateManager = require('../utils/stateManager');
+const stockFilter = require('../utils/stockFilter');
 
 class InstitutionalActivity {
     constructor() {
@@ -15,52 +14,153 @@ class InstitutionalActivity {
     }
 
     /**
-     * Fetch institutional activity data from the webpage
+     * Fetch institutional activity data from local data file
      * @returns {Promise<Array>} - Institutional activity data by stock
      */
     async fetchInstitutionalData() {
         try {
-            // In production, this would be a real API/scraping endpoint
-            // For demo purposes, we'll simulate the data structure
-            // This should be replaced with actual scraping logic
+            // Initialize stock filter
+            await stockFilter.initialize();
             
-            const response = await axios.get('https://yourwebsite.com/institutional-activity', {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            // Path to the organized NEPSE data file
+            const dataPath = path.join(process.cwd(), 'public', 'organized_nepse_data.json');
+            
+            // Read the data file
+            const rawData = await fs.readFile(dataPath, 'utf-8');
+            const stockData = JSON.parse(rawData);
+            
+            // Group data by symbol
+            const symbolData = {};
+            stockData.forEach(entry => {
+                // Only include allowed stocks
+                if (stockFilter.isAllowedStock(entry.symbol)) {
+                    if (!symbolData[entry.symbol]) {
+                        symbolData[entry.symbol] = [];
+                    }
+                    symbolData[entry.symbol].push(entry);
                 }
             });
             
-            const $ = cheerio.load(response.data);
+            // Process each stock to detect institutional activity
             const stocksData = [];
             
-            // Scrape data from the table (this is an example structure)
-            $('#institutionalActivityTable tr').each((i, element) => {
-                if (i === 0) return; // Skip header row
+            for (const symbol in symbolData) {
+                // Sort data by time in ascending order
+                const data = symbolData[symbol].sort((a, b) => 
+                    new Date(a.time.replace(/_/g, '-')) - new Date(b.time.replace(/_/g, '-'))
+                );
                 
-                const tds = $(element).find('td');
-                if (tds.length > 0) {
-                    try {
-                        const stock = {
-                            symbol: $(tds[0]).text().trim(),
-                            name: $(tds[1]).text().trim(),
-                            score: parseFloat($(tds[2]).text()),
-                            percentChange: parseFloat($(tds[3]).text()) / 100,
-                            volume: parseInt($(tds[4]).text().replace(/,/g, '')),
-                            activity: $(tds[5]).text().trim()
-                        };
-                        
-                        stocksData.push(stock);
-                    } catch (err) {
-                        console.error(`Error parsing row: ${i}`, err);
+                // Need at least 30 days of data
+                if (data.length < 30) continue;
+                
+                // Get the most recent 30 days of data
+                const recentData = data.slice(-30);
+                
+                // Calculate volume anomalies
+                const volumes = recentData.map(d => d.volume || 0);
+                const avgVolume = volumes.reduce((sum, vol) => sum + vol, 0) / volumes.length;
+                const recentVolumes = recentData.slice(-5).map(d => d.volume || 0);
+                const avgRecentVolume = recentVolumes.reduce((sum, vol) => sum + vol, 0) / recentVolumes.length;
+                
+                // Calculate price change
+                const startPrice = recentData[0].close;
+                const endPrice = recentData[recentData.length - 1].close;
+                const percentChange = ((endPrice - startPrice) / startPrice) * 100;
+                
+                // Calculate volume trend
+                const volumeChange = avgRecentVolume / (avgVolume || 1);
+                
+                // Calculate OBV (On-Balance Volume)
+                let obv = 0;
+                for (let i = 1; i < recentData.length; i++) {
+                    const currentClose = recentData[i].close;
+                    const previousClose = recentData[i-1].close;
+                    const currentVolume = recentData[i].volume || 0;
+                    
+                    if (currentClose > previousClose) {
+                        obv += currentVolume;
+                    } else if (currentClose < previousClose) {
+                        obv -= currentVolume;
                     }
                 }
-            });
+                
+                // Calculate institutional score based on multiple factors
+                let score = 0;
+                
+                // Factor 1: Volume anomalies (30%)
+                if (avgRecentVolume > avgVolume * 1.5) {
+                    score += 0.3;
+                } else if (avgRecentVolume > avgVolume * 1.2) {
+                    score += 0.2;
+                } else if (avgRecentVolume > avgVolume) {
+                    score += 0.1;
+                }
+                
+                // Factor 2: Price trend alignment (30%)
+                if (percentChange > 5 && volumeChange > 1.3) {
+                    score += 0.3;
+                } else if (percentChange > 2 && volumeChange > 1.1) {
+                    score += 0.2;
+                } else if (percentChange > 0 && volumeChange > 1) {
+                    score += 0.1;
+                }
+                
+                // Factor 3: Price stability and support (20%)
+                const prices = recentData.map(d => d.close);
+                const maxPrice = Math.max(...prices);
+                const minPrice = Math.min(...prices);
+                const priceRange = (maxPrice - minPrice) / minPrice;
+                
+                if (priceRange < 0.05) {
+                    score += 0.2; // Very stable price
+                } else if (priceRange < 0.1) {
+                    score += 0.15; // Moderately stable
+                } else if (priceRange < 0.15) {
+                    score += 0.1; // Somewhat stable
+                }
+                
+                // Factor 4: OBV trend (20%)
+                if (obv > 0 && percentChange > 0) {
+                    score += 0.2; // Strong accumulation
+                } else if (obv > 0) {
+                    score += 0.1; // Some accumulation
+                }
+                
+                // Determine activity type
+                let activity = 'Neutral';
+                if (score >= 0.7 && percentChange > 0) {
+                    activity = 'Increasing';
+                } else if (score >= 0.5 && percentChange < 0) {
+                    activity = 'Decreasing';
+                } else if (score >= 0.5) {
+                    activity = 'Stable';
+                }
+                
+                // Get stock name from symbol (or use symbol if name not available)
+                const name = symbol;
+                
+                // Add the stock if it has a significant score
+                if (score >= this.thresholds[0] || Math.abs(percentChange) >= this.minPercentChange) {
+                    stocksData.push({
+                        symbol,
+                        name,
+                        score,
+                        percentChange: percentChange / 100,
+                        volume: avgRecentVolume,
+                        activity
+                    });
+                }
+            }
             
-            return stocksData;
+            // Only return real data if we have at least one item
+            if (stocksData.length > 0) {
+                return stocksData;
+            } else {
+                throw new Error('No stocks found with institutional activity signals');
+            }
         } catch (error) {
-            console.error('Error fetching institutional data:', error);
-            // Return sample data for testing
-            return this.getSampleData();
+            console.error('Error processing institutional data:', error);
+            throw error;
         }
     }
 

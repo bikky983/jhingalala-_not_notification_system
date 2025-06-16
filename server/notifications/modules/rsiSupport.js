@@ -3,67 +3,213 @@
  */
 const fs = require('fs').promises;
 const path = require('path');
-const axios = require('axios');
-const cheerio = require('cheerio');
 const config = require('../config/config');
 const stateManager = require('../utils/stateManager');
+const stockFilter = require('../utils/stockFilter');
 
-class RSISupport {
+class RsiSupport {
     constructor() {
         this.maxRSI = config.criteria.rsiSupport.maxRSI;
         this.maxDistanceFromSupport = config.criteria.rsiSupport.maxDistanceFromSupport;
     }
 
     /**
-     * Fetch RSI support data from the webpage
+     * Fetch RSI support data from local JSON file
      * @returns {Promise<Array>} - RSI support data by stock
      */
-    async fetchRSISupportData() {
+    async fetchRsiSupportData() {
         try {
-            // In production, this would be a real API/scraping endpoint
-            // For demo purposes, we'll simulate the data structure
-            // This should be replaced with actual scraping logic
+            // Initialize stock filter
+            await stockFilter.initialize();
             
-            const response = await axios.get('https://yourwebsite.com/rsi-support', {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            // Path to the organized NEPSE data file
+            const dataPath = path.join(process.cwd(), 'public', 'organized_nepse_data.json');
+            
+            // Read the data file
+            const rawData = await fs.readFile(dataPath, 'utf-8');
+            const stockData = JSON.parse(rawData);
+            
+            // Group data by symbol
+            const symbolData = {};
+            stockData.forEach(entry => {
+                // Only include allowed stocks
+                if (stockFilter.isAllowedStock(entry.symbol)) {
+                    if (!symbolData[entry.symbol]) {
+                        symbolData[entry.symbol] = [];
+                    }
+                    symbolData[entry.symbol].push(entry);
                 }
             });
             
-            const $ = cheerio.load(response.data);
+            // Process each stock to calculate RSI and detect support levels
             const stocksData = [];
             
-            // Scrape data from the table
-            $('#rsiSupportTable tr').each((i, element) => {
-                if (i === 0) return; // Skip header row
+            for (const symbol in symbolData) {
+                // Sort data by time in ascending order
+                const data = symbolData[symbol].sort((a, b) => 
+                    new Date(a.time.replace(/_/g, '-')) - new Date(b.time.replace(/_/g, '-'))
+                );
                 
-                const tds = $(element).find('td');
-                if (tds.length > 0) {
-                    try {
-                        const stock = {
-                            symbol: $(tds[0]).text().trim(),
-                            name: $(tds[1]).text().trim(),
-                            lastPrice: parseFloat($(tds[2]).text().replace(/,/g, '')),
-                            rsi: parseFloat($(tds[3]).text()),
-                            supportLevel: parseFloat($(tds[4]).text().replace(/,/g, '')),
-                            distanceFromSupport: parseFloat($(tds[5]).text()),
-                            volume: parseInt($(tds[6]).text().replace(/,/g, '')),
-                            percentChange: parseFloat($(tds[7]).text()) / 100
-                        };
-                        
-                        stocksData.push(stock);
-                    } catch (err) {
-                        console.error(`Error parsing row: ${i}`, err);
+                // Need at least 15 days of data for RSI calculation
+                if (data.length < 15) continue;
+                
+                // Calculate RSI(14)
+                const rsiValues = this.calculateRSI(data, 14);
+                
+                // Get the most recent close price
+                const lastPrice = data[data.length - 1].close;
+                
+                // Find support levels in the last 120 days (or full data if less)
+                const period = Math.min(120, data.length);
+                const recentData = data.slice(-period);
+                
+                // Calculate support levels
+                const supportLevels = this.findSupportLevels(recentData);
+                
+                // Find the nearest support level below current price
+                let nearestSupport = 0;
+                let percentFromSupport = 100;
+                
+                for (const support of supportLevels) {
+                    if (support < lastPrice) {
+                        const distance = ((lastPrice - support) / support) * 100;
+                        if (distance < percentFromSupport) {
+                            percentFromSupport = distance;
+                            nearestSupport = support;
+                        }
                     }
                 }
-            });
+                
+                // Get current RSI value
+                const currentRSI = rsiValues.length > 0 ? rsiValues[rsiValues.length - 1] : 50;
+                
+                // If RSI is below threshold and price is close to support, add to results
+                if (currentRSI <= this.maxRSI && 
+                    percentFromSupport <= this.maxDistanceFromSupport && 
+                    nearestSupport > 0) {
+                    
+                    // Determine sector based on stock symbol
+                    let sector = 'Other';
+                    if (symbol.includes('BANK')) sector = 'Banking';
+                    else if (symbol.includes('HYDRO')) sector = 'Hydropower';
+                    else if (symbol.includes('LIFE')) sector = 'Insurance';
+                    else if (symbol.includes('MICRO')) sector = 'Microfinance';
+                    
+                    stocksData.push({
+                        symbol: symbol,
+                        name: symbol, // Using symbol as name
+                        currentRSI: currentRSI,
+                        supportLevel: nearestSupport,
+                        lastPrice: lastPrice,
+                        percentFromSupport: percentFromSupport / 100,
+                        volume: data[data.length - 1].volume || 0,
+                        sector: sector
+                    });
+                }
+            }
             
-            return stocksData;
+            // Only return real data if we have at least one item
+            if (stocksData.length > 0) {
+                return stocksData;
+            } else {
+                throw new Error('No RSI support stocks found in data');
+            }
         } catch (error) {
-            console.error('Error fetching RSI support data:', error);
-            // Return sample data for testing
-            return this.getSampleData();
+            console.error('Error processing RSI support data:', error);
+            throw error;
         }
+    }
+    
+    /**
+     * Calculate RSI (Relative Strength Index)
+     * @param {Array} data - Price data array
+     * @param {Number} period - RSI period (usually 14)
+     * @returns {Array} - Array of RSI values
+     */
+    calculateRSI(data, period) {
+        const rsiValues = [];
+        let gains = 0;
+        let losses = 0;
+        
+        // Calculate initial average gain and loss
+        for (let i = 1; i <= period; i++) {
+            const difference = data[i].close - data[i-1].close;
+            if (difference >= 0) {
+                gains += difference;
+            } else {
+                losses += Math.abs(difference);
+            }
+        }
+        
+        let avgGain = gains / period;
+        let avgLoss = losses / period;
+        
+        // Calculate smoothed RSI for remaining data
+        for (let i = period + 1; i < data.length; i++) {
+            const difference = data[i].close - data[i-1].close;
+            let currentGain = 0;
+            let currentLoss = 0;
+            
+            if (difference >= 0) {
+                currentGain = difference;
+            } else {
+                currentLoss = Math.abs(difference);
+            }
+            
+            // Calculate smoothed averages
+            avgGain = ((avgGain * (period - 1)) + currentGain) / period;
+            avgLoss = ((avgLoss * (period - 1)) + currentLoss) / period;
+            
+            // Calculate RS and RSI
+            const rs = avgLoss > 0 ? avgGain / avgLoss : 100;
+            const rsi = 100 - (100 / (1 + rs));
+            
+            rsiValues.push(rsi);
+        }
+        
+        return rsiValues;
+    }
+    
+    /**
+     * Find support levels using swing lows
+     * @param {Array} data - Price data array
+     * @returns {Array} - Array of support levels
+     */
+    findSupportLevels(data) {
+        const supportLevels = [];
+        const windowSize = 5; // Look 5 days before and after
+        
+        for (let i = windowSize; i < data.length - windowSize; i++) {
+            const currentLow = data[i].low;
+            let isSupport = true;
+            
+            // Check if this is a local minimum
+            for (let j = i - windowSize; j <= i + windowSize; j++) {
+                if (j === i) continue;
+                if (data[j].low < currentLow) {
+                    isSupport = false;
+                    break;
+                }
+            }
+            
+            if (isSupport) {
+                // Check if similar to existing support level (within 2%)
+                let isUnique = true;
+                for (const level of supportLevels) {
+                    const diff = Math.abs((level - currentLow) / currentLow);
+                    if (diff < 0.02) { // 2% tolerance
+                        isUnique = false;
+                        break;
+                    }
+                }
+                
+                if (isUnique) {
+                    supportLevels.push(currentLow);
+                }
+            }
+        }
+        
+        return supportLevels;
     }
 
     /**
@@ -72,50 +218,45 @@ class RSISupport {
      */
     getSampleData() {
         return [
-            { symbol: 'BANK1', name: 'Bank One', lastPrice: 300, rsi: 35, supportLevel: 290, distanceFromSupport: 3.4, volume: 250000, percentChange: -0.01 },
-            { symbol: 'TECH1', name: 'Tech Company', lastPrice: 520, rsi: 28, supportLevel: 505, distanceFromSupport: 3.0, volume: 180000, percentChange: -0.02 },
-            { symbol: 'HYDRO1', name: 'Hydro One', lastPrice: 150, rsi: 42, supportLevel: 145, distanceFromSupport: 3.4, volume: 150000, percentChange: -0.015 },
-            { symbol: 'MICRO1', name: 'Micro One', lastPrice: 450, rsi: 38, supportLevel: 430, distanceFromSupport: 4.7, volume: 120000, percentChange: -0.008 },
-            { symbol: 'HOTEL1', name: 'Hotel One', lastPrice: 180, rsi: 30, supportLevel: 170, distanceFromSupport: 5.9, volume: 95000, percentChange: -0.02 },
-            { symbol: 'INSUR1', name: 'Insurance One', lastPrice: 550, rsi: 48, supportLevel: 530, distanceFromSupport: 3.8, volume: 85000, percentChange: -0.005 },
-            { symbol: 'FOOD1', name: 'Food One', lastPrice: 250, rsi: 33, supportLevel: 240, distanceFromSupport: 4.2, volume: 110000, percentChange: -0.012 }
+            { symbol: 'BANK', name: 'Bank Ltd', currentRSI: 32.5, supportLevel: 320, lastPrice: 328, percentFromSupport: 0.025, volume: 250000, sector: 'Banking' },
+            { symbol: 'HYDRO', name: 'Hydro Power', currentRSI: 35.8, supportLevel: 125, lastPrice: 130, percentFromSupport: 0.04, volume: 320000, sector: 'Hydropower' },
+            { symbol: 'MICRO', name: 'Microfinance', currentRSI: 29.2, supportLevel: 390, lastPrice: 400, percentFromSupport: 0.026, volume: 150000, sector: 'Microfinance' },
+            { symbol: 'LIFE', name: 'Life Insurance', currentRSI: 38.5, supportLevel: 580, lastPrice: 600, percentFromSupport: 0.035, volume: 95000, sector: 'Insurance' },
+            { symbol: 'HOTEL', name: 'Hotel Chain', currentRSI: 33.7, supportLevel: 170, lastPrice: 175, percentFromSupport: 0.029, volume: 120000, sector: 'Tourism' }
         ];
     }
 
     /**
-     * Filter stocks by RSI and support criteria
+     * Filter stocks by RSI support criteria
      * @param {Array} stocksData - All RSI support data
-     * @returns {Array} - Filtered stocks meeting RSI support criteria
+     * @returns {Object} - Filtered stocks meeting criteria
      */
-    filterStocksByRSISupport(stocksData) {
-        // Filter by RSI and distance from support
+    filterBySupport(stocksData) {
+        // Filter stocks based on RSI and distance from support
         return stocksData.filter(stock => {
-            return stock.rsi <= this.maxRSI && 
-                   stock.distanceFromSupport <= this.maxDistanceFromSupport;
+            return stock.currentRSI <= this.maxRSI && 
+                   stock.percentFromSupport <= this.maxDistanceFromSupport / 100;
         });
     }
 
     /**
-     * Process RSI support data and prepare for notification
+     * Process all RSI support data and prepare for notification
      * @returns {Promise<Object>} - Processed notification data
      */
     async process() {
         try {
             // Fetch the data
-            const stocksData = await this.fetchRSISupportData();
+            const stocksData = await this.fetchRsiSupportData();
             
             // Filter stocks by RSI support criteria
-            const supportStocks = this.filterStocksByRSISupport(stocksData);
-            
-            // Sort by RSI (ascending - lower RSI first)
-            const sortedStocks = supportStocks.sort((a, b) => a.rsi - b.rsi);
+            const filteredStocks = this.filterBySupport(stocksData);
             
             // Update state
-            await stateManager.updateRSISupportStocks(
-                sortedStocks.reduce((acc, stock) => {
+            await stateManager.updateRSIStocks(
+                filteredStocks.reduce((acc, stock) => {
                     acc[stock.symbol] = {
-                        rsi: stock.rsi,
-                        distanceFromSupport: stock.distanceFromSupport,
+                        rsi: stock.currentRSI,
+                        supportLevel: stock.supportLevel,
                         timestamp: new Date().toISOString()
                     };
                     return acc;
@@ -124,14 +265,7 @@ class RSISupport {
             
             return {
                 type: 'rsiSupport',
-                data: {
-                    stocks: sortedStocks,
-                    summary: {
-                        count: sortedStocks.length,
-                        averageRSI: sortedStocks.reduce((sum, stock) => sum + stock.rsi, 0) / 
-                                    (sortedStocks.length || 1)
-                    }
-                },
+                data: { stocks: filteredStocks },
                 timestamp: new Date().toISOString()
             };
         } catch (error) {
@@ -141,4 +275,4 @@ class RSISupport {
     }
 }
 
-module.exports = new RSISupport(); 
+module.exports = new RsiSupport(); 

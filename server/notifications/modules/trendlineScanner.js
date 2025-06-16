@@ -3,10 +3,9 @@
  */
 const fs = require('fs').promises;
 const path = require('path');
-const axios = require('axios');
-const cheerio = require('cheerio');
 const config = require('../config/config');
 const stateManager = require('../utils/stateManager');
+const stockFilter = require('../utils/stockFilter');
 
 class TrendlineScanner {
     constructor() {
@@ -16,55 +15,180 @@ class TrendlineScanner {
     }
 
     /**
-     * Fetch trendline data from the webpage
+     * Fetch trendline data from local JSON file
      * @returns {Promise<Array>} - Trendline data by stock
      */
     async fetchTrendlineData() {
         try {
-            // In production, this would be a real API/scraping endpoint
-            // For demo purposes, we'll simulate the data structure
-            // This should be replaced with actual scraping logic
+            // Initialize stock filter
+            await stockFilter.initialize();
             
-            const response = await axios.get('https://yourwebsite.com/enhanced-trendline-scanner', {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            // Path to the organized NEPSE data file
+            const dataPath = path.join(process.cwd(), 'public', 'organized_nepse_data.json');
+            
+            // Read the data file
+            const rawData = await fs.readFile(dataPath, 'utf-8');
+            const stockData = JSON.parse(rawData);
+            
+            // Group data by symbol
+            const symbolData = {};
+            stockData.forEach(entry => {
+                // Only include allowed stocks
+                if (stockFilter.isAllowedStock(entry.symbol)) {
+                    if (!symbolData[entry.symbol]) {
+                        symbolData[entry.symbol] = [];
+                    }
+                    symbolData[entry.symbol].push(entry);
                 }
             });
             
-            const $ = cheerio.load(response.data);
+            // Process each stock to detect trendlines
             const stocksData = [];
             
-            // Scrape data from the table
-            $('#trendlineTable tr').each((i, element) => {
-                if (i === 0) return; // Skip header row
+            for (const symbol in symbolData) {
+                // Sort data by time in ascending order
+                const data = symbolData[symbol].sort((a, b) => 
+                    new Date(a.time.replace(/_/g, '-')) - new Date(b.time.replace(/_/g, '-'))
+                );
                 
-                const tds = $(element).find('td');
-                if (tds.length > 0) {
-                    try {
-                        const stock = {
-                            symbol: $(tds[0]).text().trim(),
-                            name: $(tds[1]).text().trim(),
-                            trend: $(tds[2]).text().trim(),
-                            percentChange: parseFloat($(tds[3]).text()) / 100,
-                            trendStrength: parseFloat($(tds[4]).text()),
-                            volume: parseInt($(tds[5]).text().replace(/,/g, '')),
-                            lastPrice: parseFloat($(tds[6]).text().replace(/,/g, '')),
-                            support: parseFloat($(tds[7]).text().replace(/,/g, ''))
-                        };
-                        
-                        stocksData.push(stock);
-                    } catch (err) {
-                        console.error(`Error parsing row: ${i}`, err);
-                    }
+                // Need at least 60 days of data for reliable trendline detection
+                if (data.length < 60) continue;
+                
+                // Get the most recent 60 days of data
+                const recentData = data.slice(-60);
+                
+                // Find local minimums for support trendline
+                const localMinimums = this.findLocalMinimums(recentData);
+                
+                // Need at least 2 points to form a trendline
+                if (localMinimums.length < 2) continue;
+                
+                // Calculate support trendline
+                const supportTrendline = this.calculateTrendline(localMinimums);
+                
+                // Calculate current position relative to trendline
+                const lastPrice = recentData[recentData.length - 1].close;
+                const lastDay = recentData.length - 1;
+                const expectedSupport = supportTrendline.slope * lastDay + supportTrendline.intercept;
+                
+                // Calculate percentage from support
+                const percentFromSupport = ((lastPrice - expectedSupport) / expectedSupport) * 100;
+                
+                // Calculate price change over the defined period
+                const periodStart = Math.max(0, recentData.length - this.periodToCheck);
+                const startPrice = recentData[periodStart].close;
+                const percentChange = ((lastPrice - startPrice) / startPrice) * 100;
+                
+                // Determine trend direction
+                let trend = 'Sideways';
+                if (supportTrendline.slope > 0 && percentChange >= this.minPercentChange) {
+                    trend = 'Uptrend';
+                } else if (supportTrendline.slope < 0 && Math.abs(percentChange) >= this.minPercentChange) {
+                    trend = 'Downtrend';
                 }
-            });
+                
+                // Calculate trend strength based on R-squared and slope
+                // Higher R-squared = more reliable trendline
+                const trendStrength = Math.min(1, Math.abs(supportTrendline.rSquared * supportTrendline.slope * 20));
+                
+                // Add to results if meets criteria
+                if (Math.abs(percentChange) >= this.minPercentChange) {
+                    stocksData.push({
+                        symbol,
+                        name: symbol, // Using symbol as name
+                        trend,
+                        percentChange: percentChange / 100,
+                        trendStrength,
+                        lastPrice,
+                        support: expectedSupport,
+                        volume: recentData[recentData.length - 1].volume || 0
+                    });
+                }
+            }
             
-            return stocksData;
+            // Only return real data if we have at least one item
+            if (stocksData.length > 0) {
+                return stocksData;
+            } else {
+                throw new Error('No trendline stocks found in data');
+            }
         } catch (error) {
-            console.error('Error fetching trendline data:', error);
-            // Return sample data for testing
-            return this.getSampleData();
+            console.error('Error processing trendline data:', error);
+            throw error;
         }
+    }
+    
+    /**
+     * Find local minimum points in price data
+     * @param {Array} data - Price data array
+     * @returns {Array} - Array of local minimum points
+     */
+    findLocalMinimums(data) {
+        const minimums = [];
+        const windowSize = 7; // Look 7 days before and after
+        
+        for (let i = windowSize; i < data.length - windowSize; i++) {
+            const currentPrice = data[i].low;
+            let isMinimum = true;
+            
+            // Check if this is a local minimum
+            for (let j = i - windowSize; j <= i + windowSize; j++) {
+                if (j === i) continue;
+                if (data[j].low < currentPrice) {
+                    isMinimum = false;
+                    break;
+                }
+            }
+            
+            if (isMinimum) {
+                minimums.push({
+                    day: i,
+                    price: currentPrice
+                });
+            }
+        }
+        
+        return minimums;
+    }
+    
+    /**
+     * Calculate trendline using linear regression
+     * @param {Array} points - Array of points {day, price}
+     * @returns {Object} - Trendline parameters
+     */
+    calculateTrendline(points) {
+        const n = points.length;
+        
+        // Calculate means
+        let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0;
+        
+        for (const point of points) {
+            sumX += point.day;
+            sumY += point.price;
+            sumXY += point.day * point.price;
+            sumX2 += point.day * point.day;
+            sumY2 += point.price * point.price;
+        }
+        
+        const meanX = sumX / n;
+        const meanY = sumY / n;
+        
+        // Calculate slope and intercept
+        const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+        const intercept = meanY - slope * meanX;
+        
+        // Calculate R-squared (coefficient of determination)
+        let SSres = 0, SStot = 0;
+        
+        for (const point of points) {
+            const predicted = slope * point.day + intercept;
+            SSres += Math.pow(point.price - predicted, 2);
+            SStot += Math.pow(point.price - meanY, 2);
+        }
+        
+        const rSquared = 1 - (SSres / SStot);
+        
+        return { slope, intercept, rSquared };
     }
 
     /**
