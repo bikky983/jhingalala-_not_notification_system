@@ -1,0 +1,52 @@
+name: Stock Notification Service
+
+on:
+  schedule:
+    # Run daily at 5:00 PM Nepal time (11:15 AM UTC)
+    - cron: '15 11 * * *'
+  workflow_dispatch:
+    inputs:
+      run_now:
+        description: 'Run notifications immediately'
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  send-notifications:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Create data directory
+      run: mkdir -p server/notifications/data
+      
+    - name: Create initial state file if not exists
+      run: |
+        if [ ! -f server/notifications/data/previous-alerts.json ]; then
+          echo '{ "lastUpdated": null, "institutionalStocks": {}, "trendlineStocks": {}, "rsiSupportStocks": {}, "heatmapStocks": {} }' > server/notifications/data/previous-alerts.json
+        fi
+      
+    - name: Setup environment variables
+      run: |
+        echo "EMAIL_USER=${{ secrets.EMAIL_USER }}" >> .env
+        echo "EMAIL_PASSWORD=${{ secrets.EMAIL_PASSWORD }}" >> .env
+        echo "EMAIL_FROM=${{ secrets.EMAIL_FROM }}" >> .env
+        echo "EMAIL_RECIPIENTS=${{ secrets.EMAIL_RECIPIENTS }}" >> .env
+        echo "NOTIFICATION_CRON=15 11 * * *" >> .env
+        
+    - name: Run stock notifications
+      run: node server/notifications/sendNotifications.js --now
+      
+    # For production deployment, you would typically set up a scheduled job on a server
+    # This workflow is primarily for setting up the environment and testing notifications 
