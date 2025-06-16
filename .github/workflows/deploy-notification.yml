@@ -48,5 +48,19 @@ jobs:
     - name: Run stock notifications
       run: node server/notifications/sendNotifications.js --now
       
+    - name: Check for changes in state file
+      id: check_changes
+      run: |
+        git diff --quiet server/notifications/data/previous-alerts.json || echo "changes=true" >> $GITHUB_OUTPUT
+        
+    - name: Commit and push changes if state file was updated
+      if: steps.check_changes.outputs.changes == 'true'
+      run: |
+        git config --global user.name "GitHub Actions Bot"
+        git config --global user.email "actions@github.com"
+        git add server/notifications/data/previous-alerts.json
+        git commit -m "Update stock notification state [skip ci]"
+        git push
+      
     # For production deployment, you would typically set up a scheduled job on a server
     # This workflow is primarily for setting up the environment and testing notifications 
