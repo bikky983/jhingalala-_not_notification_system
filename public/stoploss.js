@@ -1176,6 +1176,52 @@ function toggleAutoRefresh() {
 
 function loadBoughtStocks() {
     boughtStocks = JSON.parse(localStorage.getItem('boughtStocks') || '[]');
+    
+    // Check if there are user stocks with stoploss data in localStorage
+    const userStocks = JSON.parse(localStorage.getItem('userStocks') || '[]');
+    
+    if (userStocks && Array.isArray(userStocks) && userStocks.length > 0) {
+        console.log('Checking user stocks for stoploss values');
+        
+        // Create a map of symbols to their stoploss prices from user stocks
+        const stoplossMap = {};
+        
+        userStocks.forEach(stock => {
+            // Check if this stock has stoploss data
+            if (stock.symbol && stock.stoplossPrice) {
+                const stoplossPrice = parseFloat(stock.stoplossPrice);
+                
+                if (!isNaN(stoplossPrice) && stoplossPrice > 0) {
+                    stoplossMap[stock.symbol] = stoplossPrice;
+                    console.log(`Found stoploss for ${stock.symbol}: ${stoplossPrice}`);
+                }
+            }
+        });
+        
+        // Update boughtStocks with stoploss prices from user stocks
+        if (Object.keys(stoplossMap).length > 0) {
+            let updatedCount = 0;
+            
+            boughtStocks = boughtStocks.map(stock => {
+                if (stoplossMap[stock.symbol]) {
+                    updatedCount++;
+                    return {
+                        ...stock,
+                        stoplossPrice: stoplossMap[stock.symbol],
+                        manuallyUpdated: true // Mark as manually updated so it won't be overridden
+                    };
+                }
+                return stock;
+            });
+            
+            // Save updated boughtStocks
+            if (updatedCount > 0) {
+                localStorage.setItem('boughtStocks', JSON.stringify(boughtStocks));
+                console.log(`Updated stoploss prices for ${updatedCount} stocks from user stocks data`);
+                showSuccess(`Updated stoploss prices for ${updatedCount} stocks from uploaded Excel`);
+            }
+        }
+    }
 }
 
 async function fetchCurrentPrices() {
