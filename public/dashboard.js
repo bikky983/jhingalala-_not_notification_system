@@ -233,6 +233,9 @@ function setupEventListeners() {
         // Get support stocks history
         const supportStocksHistory = JSON.parse(localStorage.getItem('supportStocksHistory') || '{}');
         
+        // Get IPO/Rights stocks
+        const ipoRightsStocks = JSON.parse(localStorage.getItem('ipoRightsStocks') || '[]');
+        
         // Create enhanced stock data with bought status
         const enhancedStocks = stocks.map(stock => {
             // Check if this stock is in boughtStocks
@@ -256,6 +259,12 @@ function setupEventListeners() {
         
         // Add the stocks worksheet
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Stocks');
+        
+        // Add IPO/Rights worksheet
+        if (ipoRightsStocks && ipoRightsStocks.length > 0) {
+            const ipoRightsSheet = XLSX.utils.json_to_sheet(ipoRightsStocks);
+            XLSX.utils.book_append_sheet(workbook, ipoRightsSheet, 'IpoRights');
+        }
         
         // Create a worksheet for support history
         const historyData = Object.entries(supportStocksHistory).map(([key, date]) => {
@@ -347,6 +356,20 @@ function setupEventListeners() {
                     });
                     
                     localStorage.setItem('supportStocksHistory', JSON.stringify(supportStocksHistory));
+                }
+                
+                // Process the IpoRights sheet if present
+                if (workbook.SheetNames.includes('IpoRights')) {
+                    const ipoRightsSheet = workbook.Sheets['IpoRights'];
+                    const ipoRightsJson = XLSX.utils.sheet_to_json(ipoRightsSheet);
+                    if (Array.isArray(ipoRightsJson)) {
+                        try {
+                            localStorage.setItem('ipoRightsStocks', JSON.stringify(ipoRightsJson));
+                            // Optionally, trigger a refresh or notify user
+                        } catch (e) {
+                            console.error('Failed to update IPO/Rights stocks from Excel:', e);
+                        }
+                    }
                 }
                 
                 // Display the stocks
